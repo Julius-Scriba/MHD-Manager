@@ -46,6 +46,10 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     sessionGet: db.prepare('SELECT * FROM sessions WHERE token = ?'),
     sessionDelete: db.prepare('DELETE FROM sessions WHERE token = ?'),
     sessionDeleteUser: db.prepare('DELETE FROM sessions WHERE user_id = ?'),
+    sessionDeleteOne: db.prepare('DELETE FROM sessions WHERE token = ? AND user_id = ?'),
+    sessionsOf: db.prepare(`SELECT token, created_at, last_seen, expires_at, user_agent, ip
+      FROM sessions WHERE user_id = ? ORDER BY last_seen DESC`),
+    sessionTouch: db.prepare("UPDATE sessions SET last_seen = datetime('now') WHERE token = ?"),
     sessionSweep: db.prepare('DELETE FROM sessions WHERE expires_at < ?'),
     products: db.prepare('SELECT * FROM products WHERE archived = 0 ORDER BY name COLLATE NOCASE'),
     product: db.prepare('SELECT * FROM products WHERE id = ?'),
@@ -197,6 +201,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     const user = q.userById.get(row.user_id);
     if (!user) return null;
     touchLastSeen(user.id);
+    touchSession(token);
     return { user, token };
   }
 
@@ -213,6 +218,19 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
       q.setLastSeen.run(userId);
     } catch (err) {
       console.error('[mhd] last_seen konnte nicht gesetzt werden:', err.message);
+    }
+  };
+
+  /** Sitzung selbst als „gesehen" markieren — gedrosselt wie last_seen, für die Geräteliste. */
+  const sessionCtx = { touched: new Map() };
+  const touchSession = (token) => {
+    const now = Date.now();
+    if (now - (sessionCtx.touched.get(token) || 0) < 60_000) return;
+    sessionCtx.touched.set(token, now);
+    try {
+      q.sessionTouch.run(token);
+    } catch (err) {
+      console.error('[mhd] Sitzung konnte nicht aktualisiert werden:', err.message);
     }
   };
 
@@ -321,6 +339,12 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     q.sessionSweep.run(Date.now());
     const token = newSessionToken(sessionSecret);
     q.sessionInsert.run(token, user.id, Date.now() + SESSION_TTL_MS, String(req.headers['user-agent'] || '').slice(0, 200));
+    q.sessionTouch.run(token);
+    try {
+      db.prepare('UPDATE sessions SET ip = ? WHERE token = ?').run(clientIp(req), token);
+    } catch (err) {
+      console.error('[mhd] Sitzungs-IP nicht gespeichert:', err.message);
+    }
     q.setLastLogin.run(user.id);
     ql('login_ok', { user, detail: 'Anmeldung erfolgreich' });
 
@@ -636,6 +660,87 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     q.setRole.run(role, id);
     ql('user_role_changed', { req, entity: 'user', entityName: target.username, detail: `${target.role || 'user'} → ${role}` });
     res.json(safeUser(q.userById.get(id)));
+  });
+
+  /* ---------- Geräte einer Sitzung (eigene) ---------- */
+  /** User-Agent grob einordnen: Browser, System, Gerätetyp. Genug für „das bin ich / das nicht". */
+  const describeAgent = (ua = '') => {
+    const text = String(ua);
+    const browser = /Edg\//i.test(text) ? 'Edge'
+      : /OPR\/|Opera/i.test(text) ? 'Opera'
+      : /Firefox\//i.test(text) ? 'Firefox'
+      : /CriOS/i.test(text) ? 'Chrome'
+      : /Chrome\//i.test(text) ? 'Chrome'
+      : /Safari\//i.test(text) ? 'Safari'
+      : /curl|wget|python|node/i.test(text) ? 'Kommandozeile'
+      : 'Unbekannt';
+    const system = /iPhone|iPad|iPod/i.test(text) ? 'iOS'
+      : /Android/i.test(text) ? 'Android'
+      : /Windows/i.test(text) ? 'Windows'
+      : /Mac OS X|Macintosh/i.test(text) ? 'macOS'
+      : /Linux/i.test(text) ? 'Linux'
+      : 'Unbekannt';
+    const kind = /iPad|Tablet/i.test(text) ? 'Tablet'
+      : /iPhone|Android.*Mobile|Mobile/i.test(text) ? 'Handy'
+      : 'Rechner';
+    return { browser, system, kind };
+  };
+
+  api.get('/sessions', (req, res) => {
+    const rows = q.sessionsOf.all(req.auth.user.id);
+    const now = Date.now();
+    res.json({
+      sessions: rows.map((r) => {
+        const seen = r.last_seen ? Date.parse(`${r.last_seen.replace(' ', 'T')}Z`) : now;
+        const expires = Number(r.expires_at);
+        return {
+          id: r.token.slice(0, 10),
+          current: r.token === req.auth.token,
+          ...describeAgent(r.user_agent),
+          ip: r.ip || '',
+          created_at: r.created_at,
+          last_seen: r.last_seen,
+          last_seen_min: Math.max(0, Math.round((now - seen) / 60_000)),
+          expires_at: new Date(expires).toISOString(),
+          active: now - seen < 5 * 60_000,
+          user_agent: r.user_agent,
+        };
+      }),
+      total: rows.length,
+    });
+  });
+
+  /** Einzelnes Gerät abmelden. token_prefix kommt aus GET /sessions. */
+  api.delete('/sessions/:prefix', (req, res) => {
+    const prefix = String(req.params.prefix || '');
+    if (prefix.length < 6) return res.status(400).json({ error: 'Ungültige Sitzung.' });
+    // Nur unter den eigenen Sitzungen suchen — fremde token_prefix dürfen nichts löschen.
+    const own = q.sessionsOf.all(req.auth.user.id);
+    const hit = own.find((r) => r.token.slice(0, prefix.length) === prefix);
+    if (!hit) return res.status(404).json({ error: 'Sitzung nicht gefunden.' });
+    q.sessionDeleteOne.run(hit.token, req.auth.user.id);
+    ql('session_revoked', {
+      req, entity: 'session', entityName: `Gerät ${prefix}`,
+      detail: hit.token === req.auth.token ? 'eigene aktuelle Sitzung beendet' : 'Gerät abgemeldet',
+    });
+    if (hit.token === req.auth.token) res.setHeader('Set-Cookie', cookieFor('', 0));
+    res.status(204).end();
+  });
+
+  /** Alle anderen Geräte abmelden, eigene Sitzung behalten. */
+  api.delete('/sessions', (req, res) => {
+    const own = q.sessionsOf.all(req.auth.user.id);
+    let ended = 0;
+    for (const r of own) {
+      if (r.token === req.auth.token) continue;
+      q.sessionDeleteOne.run(r.token, req.auth.user.id);
+      ended += 1;
+    }
+    ql('session_revoked', {
+      req, entity: 'session', entityName: 'alle anderen Geräte',
+      detail: `${ended} Sitzung(en) beendet`,
+    });
+    res.json({ ended });
   });
 
   /* Passwort ändern: verlangt das aktuelle Passwort, beendet alle anderen Sitzungen. */

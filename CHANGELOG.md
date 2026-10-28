@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.7.0 — 2026-10-28
+
+Geräteverwaltung: Jeder sieht seine angemeldeten Geräte und kann sie selbst abmelden.
+
+**Neu**
+- Tab „Geräte" unter `/settings` (für alle Benutzer, nicht nur Admins)
+- Anzeige je Anmeldung: Browser (Chrome/Safari/Firefox/Edge/Opera), System
+  (iOS/Android/Windows/macOS/Linux), Gerätetyp (Handy/Tablet/Rechner), IP,
+  Anmeldezeitpunkt und „zuletzt aktiv"
+- `GET /api/sessions`, `DELETE /api/sessions/:prefix`, `DELETE /api/sessions`
+- Einzelnes Gerät abmelden; „Alle anderen Geräte abmelden" behält die eigene Sitzung
+- Abmelden des eigenen Geräts leitet sauber zur Anmeldung
+- Protokolleintrag `session_revoked`
+
+**Absicherung**
+- Es werden nur Sitzungen des angemeldeten Benutzers durchsucht — ein fremdes
+  Token-Präfix liefert `404` statt fremde Geräte abzumelden
+- Sitzungs-Kennung nach außen nur als 10-Zeichen-Präfix, nie das volle Token
+
+**Behoben**
+- Migration: SQLite erlaubt bei `ALTER TABLE ADD COLUMN` keinen nicht-konstanten
+  Default (`datetime('now')`) — zweistufige Migration, die den Absturz beim Start verursachte
+
 ## v0.6.1 — 2026-10-28
 
 Benutzer-Formular klappt erst auf Knopfdruck auf.

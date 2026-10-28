@@ -39,7 +39,7 @@ const fmtWhen = (s) => {
 };
 
 /* ---------- Tabs ---------- */
-const TABS = ['general', 'security', 'users', 'log'];
+const TABS = ['general', 'security', 'devices', 'users', 'log'];
 
 function showTab(name) {
   if (!TABS.includes(name)) name = 'general';
@@ -49,6 +49,7 @@ function showTab(name) {
   for (const panel of document.querySelectorAll('.panel')) {
     panel.hidden = panel.dataset.panel !== name;
   }
+  if (name === 'devices') loadDevices();
   if (name === 'users') loadUsers();
   if (name === 'log') loadLog();
   // Tab in der URL halten, damit ein Neuladen dort bleibt
@@ -119,6 +120,95 @@ $('#password-form').addEventListener('submit', async (e) => {
     flash($('#password-ok'), 'Passwort geändert. Andere Geräte wurden abgemeldet.', false);
   } catch (err) {
     flash($('#password-error'), err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+/* ---------- Geräte ---------- */
+const DEVICE_ICONS = {
+  Rechner: '<path d="M4 6h16v10H4zM9 20h6M12 16v4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>',
+  Handy: '<rect x="7" y="3" width="10" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M11 18h2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+  Tablet: '<rect x="5" y="4" width="14" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M11 17h2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+};
+
+/** „vor 3 Min.", „vor 2 Std.", „am 28.10.2026, 09:14" */
+function agoText(min) {
+  if (min === null || min === undefined) return 'unbekannt';
+  if (min < 1) return 'gerade eben';
+  if (min < 60) return `vor ${min} Min.`;
+  if (min < 60 * 24) {
+    const h = Math.round(min / 60);
+    return `vor ${h} Std.`;
+  }
+  const d = Math.round(min / (60 * 24));
+  return `vor ${d} ${d === 1 ? 'Tag' : 'Tagen'}`;
+}
+
+async function loadDevices() {
+  const list = $('#device-list');
+  list.innerHTML = '<li class="device-item"><span class="u-meta">Lädt …</span></li>';
+  try {
+    const data = await api('/api/sessions');
+    list.innerHTML = data.sessions.map((s) => `
+      <li class="device-item ${s.current ? 'is-current' : ''}" data-prefix="${esc(s.id)}">
+        <span class="device-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">${DEVICE_ICONS[s.kind] || DEVICE_ICONS.Rechner}</svg>
+        </span>
+        <div class="device-body">
+          <div class="device-name">
+            ${esc(s.browser)} auf ${esc(s.system)}
+            ${s.current ? '<span class="role-badge">dieses Gerät</span>' : ''}
+            ${s.active && !s.current ? '<span class="presence on">aktiv</span>' : ''}
+          </div>
+          <div class="u-meta">
+            ${s.active ? 'gerade aktiv' : `zuletzt ${agoText(s.last_seen_min)}`}
+            · angemeldet ${esc(fmtWhen(s.created_at) || '–')}
+            ${s.ip ? ` · ${esc(s.ip)}` : ''}
+          </div>
+        </div>
+        <div class="u-actions">
+          <button class="btn ghost small ${s.current ? '' : 'danger'}" type="button" data-dact="revoke" data-prefix="${esc(s.id)}" data-current="${s.current ? '1' : '0'}">
+            ${s.current ? 'Abmelden' : 'Abmelden'}
+          </button>
+        </div>
+      </li>`).join('');
+  } catch (err) {
+    list.innerHTML = `<li class="device-item"><span class="u-meta">${esc(err.message)}</span></li>`;
+  }
+}
+
+$('#device-list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-dact="revoke"]');
+  if (!btn) return;
+  const isCurrent = btn.dataset.current === '1';
+  if (!confirm(isCurrent
+    ? 'Dieses Gerät jetzt abmelden? Du wirst zur Anmeldung zurückgeleitet.'
+    : 'Dieses Gerät abmelden? Es muss sich neu anmelden.')) return;
+  btn.disabled = true;
+  try {
+    await api(`/api/sessions/${encodeURIComponent(btn.dataset.prefix)}`, { method: 'DELETE' });
+    if (isCurrent) {
+      window.location.replace('/login.html');
+      return;
+    }
+    await loadDevices();
+  } catch (err) {
+    alert(err.message);
+    btn.disabled = false;
+  }
+});
+
+$('#btn-revoke-others').addEventListener('click', async (e) => {
+  if (!confirm('Alle anderen Geräte abmelden? Sie müssen sich neu anmelden.')) return;
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    const data = await api('/api/sessions', { method: 'DELETE' });
+    await loadDevices();
+    flash($('#devices-ok'), `${data.ended} Gerät(e) abgemeldet.`, false);
+  } catch (err) {
+    alert(err.message);
   } finally {
     btn.disabled = false;
   }
@@ -258,6 +348,7 @@ const LOG_LABELS = {
   password_changed: ['Passwort geändert', 't-info'],
   password_change_failed: ['Passwort-Fehlversuch', 't-danger'],
   settings_changed: ['Einstellung', 't-info'],
+  session_revoked: ['Gerät abgemeldet', 't-warn'],
 };
 const logLabel = (type) => LOG_LABELS[type] || [type.replace(/_/g, ' '), ''];
 

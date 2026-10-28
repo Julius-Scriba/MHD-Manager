@@ -31,6 +31,7 @@
   <nav class="tabs" id="tabs" aria-label="Bereiche">
     <button class="tab active" type="button" data-tab="general">Allgemein</button>
     <button class="tab" type="button" data-tab="security">Sicherheit</button>
+    <button class="tab" type="button" data-tab="devices">Geräte</button>
     <button class="tab" type="button" data-tab="users" id="tab-users" hidden>Benutzer</button>
     <button class="tab" type="button" data-tab="log" id="tab-log" hidden>Protokoll</button>
   </nav>
@@ -81,6 +82,16 @@
         <button class="btn primary" type="submit">Passwort ändern</button>
       </div>
     </form>
+  </section>
+
+  <!-- Geräte -->
+  <section class="panel" data-panel="devices" hidden>
+    <h2>Angemeldete Geräte</h2>
+    <p class="hint">Jede Anmeldung ist ein Eintrag. Ist eines dabei, das du nicht kennst, melde es ab und ändere dein Passwort.</p>
+    <ul class="device-list" id="device-list"></ul>
+    <div class="section-actions">
+      <button class="btn ghost" type="button" id="btn-revoke-others">Alle anderen Geräte abmelden</button>
+    </div>
   </section>
 
   <!-- Benutzer (nur Admins) -->

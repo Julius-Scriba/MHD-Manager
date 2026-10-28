@@ -88,6 +88,18 @@ function createV3(db) {
     db.exec("UPDATE users SET last_seen = last_login WHERE last_login IS NOT NULL");
   }
 
+  // v3 → v3.4: Geräteverwaltung. last_seen am Sitzungsobjekt und IP für die Anzeige.
+  const sessCols = db.prepare('PRAGMA table_info(sessions)').all().map((c) => c.name);
+  if (!sessCols.includes('last_seen')) {
+    // SQLite erlaubt bei ALTER TABLE keinen nicht-konstanten DEFAULT.
+    // Zwei Schritte: Spalte ohne DEFAULT, dann rückwirkend setzen.
+    db.exec("ALTER TABLE sessions ADD COLUMN last_seen TEXT NOT NULL DEFAULT ''");
+    db.exec('UPDATE sessions SET last_seen = COALESCE(created_at, datetime(\'now\'))');
+  }
+  if (!sessCols.includes('ip')) {
+    db.exec("ALTER TABLE sessions ADD COLUMN ip TEXT NOT NULL DEFAULT ''");
+  }
+
   // Produkte tragen den Kategorienamen redundant? Nein — category bleibt Text,
   // die Tabelle ist die Auswahlliste. So bleiben Altdaten gültig.
 }
