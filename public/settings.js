@@ -73,6 +73,8 @@ async function init() {
     $('#tab-users').hidden = !isAdmin;
     $('#tab-log').hidden = !isAdmin;
     $('#settings-form').warn_days.value = settings.warn_days;
+    // Passwort-Manager ordnet den Eintrag zu; Feld selbst bleibt unsichtbar und schreibgeschützt
+    $('#pw-username').value = me.user.username;
     showTab((location.hash || '').replace('#', '') || 'general');
   } catch (err) {
     if (err.message !== 'Nicht angemeldet.') {
@@ -100,13 +102,59 @@ $('#settings-form').addEventListener('submit', async (e) => {
 $('#btn-export').addEventListener('click', () => { window.location.href = '/api/export'; });
 
 /* ---------- Sicherheit ---------- */
+/* Jedes Passwortfeld hat sein eigenes Auge — type bleibt im HTML "password",
+   damit der Browser Passwort-Manager und Vorschläge weiter anbietet. */
+const EYE_ON = '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/>';
+const EYE_OFF = '<path d="M3 3l18 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M10.5 6.2A9.6 9.6 0 0 1 12 6c6.4 0 10 6 10 6a17 17 0 0 1-3 3.6M6.3 7.6C3.6 9.4 2 12 2 12s3.6 6 10 6a9.9 9.9 0 0 0 4.2-.9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>';
+
+for (const btn of document.querySelectorAll('.pw-eye')) {
+  btn.addEventListener('click', () => {
+    const input = $(btn.dataset.eye);
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    btn.setAttribute('aria-pressed', String(show));
+    btn.setAttribute('aria-label', `${show ? 'Verbergen' : 'Anzeigen'}`);
+    btn.classList.toggle('on', show);
+    btn.querySelector('svg').innerHTML = show ? EYE_OFF : EYE_ON;
+    input.focus();
+  });
+}
+
+/* Einfache Passwortstärke — Hinweis, keine Vorschrift. */
+const meterFill = $('#pw-meter-fill');
+const meterText = $('#pw-meter-text');
+function passwordScore(pw) {
+  if (!pw) return 0;
+  let score = 0;
+  if (pw.length >= 10) score += 1;
+  if (pw.length >= 14) score += 1;
+  if (pw.length >= 18) score += 1;
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score += 1;
+  if (/\d/.test(pw)) score += 1;
+  if (/[^\w\s]/.test(pw)) score += 1;
+  if (/^(.)\1+$/.test(pw)) score = Math.min(score, 1);
+  return Math.min(score, 5);
+}
+
+$('#pw-new').addEventListener('input', (e) => {
+  const pw = e.target.value;
+  const meter = $('#pw-meter');
+  if (!pw) { meter.hidden = true; return; }
+  meter.hidden = false;
+  const score = passwordScore(pw);
+  const labels = ['sehr schwach', 'schwach', 'mittel', 'gut', 'stark', 'sehr stark'];
+  meterFill.style.width = `${(score / 5) * 100}%`;
+  meterFill.dataset.level = String(score);
+  meterText.textContent = labels[score];
+});
+
 $('#password-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   clearFlash($('#password-error'), $('#password-ok'));
   const form = $('#password-form');
-  const current = form.current.value;
-  const next = form.next.value;
-  const confirm = form.confirm.value;
+  const current = $('#pw-current').value;
+  const next = $('#pw-new').value;
+  const confirm = $('#pw-confirm').value;
 
   if (next.length < 10) return flash($('#password-error'), 'Das neue Passwort braucht mindestens 10 Zeichen.', true);
   if (next !== confirm) return flash($('#password-error'), 'Die beiden neuen Passwörter stimmen nicht überein.', true);

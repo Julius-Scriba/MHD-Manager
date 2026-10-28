@@ -21,7 +21,12 @@
       </label>
       <label class="field full">
         <span>Passwort</span>
-        <input name="password" type="password" autocomplete="current-password" required>
+        <span class="pw-wrap">
+          <input name="password" id="login-password" type="password" autocomplete="current-password" required>
+          <button class="pw-eye" type="button" data-eye="#login-password" aria-label="Passwort anzeigen" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+          </button>
+        </span>
       </label>
       <p class="form-error" id="login-error" role="alert" hidden></p>
       <button class="btn primary login-btn" type="submit" id="login-submit">Anmelden</button>

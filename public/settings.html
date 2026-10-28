@@ -62,19 +62,46 @@
   <!-- Sicherheit -->
   <section class="panel" data-panel="security" hidden>
     <h2>Passwort ändern</h2>
-    <form id="password-form" novalidate>
+    <p class="hint">Der Browser erkennt diese Felder als Passwortwechsel und kann ein starkes Passwort vorschlagen.</p>
+    <form id="password-form" autocomplete="on" novalidate>
+      <!-- Benutzername für den Passwort-Manager: unsichtbar, damit der Eintrag
+           eindeutig zugeordnet wird, ohne dass der Browser das Feld füllt. -->
+      <input type="text" name="username" id="pw-username" autocomplete="username"
+             class="visually-hidden" tabindex="-1" aria-hidden="true" readonly>
       <label class="field full">
         <span>Aktuelles Passwort</span>
-        <input name="current" type="password" autocomplete="current-password" required>
+        <span class="pw-wrap">
+          <input name="current" id="pw-current" type="password" autocomplete="current-password"
+                 minlength="1" maxlength="200" required>
+          <button class="pw-eye" type="button" data-eye="#pw-current" aria-label="Aktuelles Passwort anzeigen" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+          </button>
+        </span>
       </label>
       <label class="field full">
         <span>Neues Passwort</span>
-        <input name="next" type="password" autocomplete="new-password" minlength="10" required>
+        <span class="pw-wrap">
+          <input name="new-password" id="pw-new" type="password" autocomplete="new-password"
+                 minlength="10" maxlength="200" required>
+          <button class="pw-eye" type="button" data-eye="#pw-new" aria-label="Neues Passwort anzeigen" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+          </button>
+        </span>
       </label>
       <label class="field full">
         <span>Neues Passwort wiederholen</span>
-        <input name="confirm" type="password" autocomplete="new-password" minlength="10" required>
+        <span class="pw-wrap">
+          <input name="confirm-password" id="pw-confirm" type="password" autocomplete="new-password"
+                 minlength="10" maxlength="200" required>
+          <button class="pw-eye" type="button" data-eye="#pw-confirm" aria-label="Wiederholung anzeigen" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+          </button>
+        </span>
       </label>
+      <div class="pw-meter" id="pw-meter" hidden>
+        <div class="pw-meter-bar"><span id="pw-meter-fill"></span></div>
+        <span class="pw-meter-text" id="pw-meter-text"></span>
+      </div>
       <p class="hint">Mindestens 10 Zeichen. Andere Sitzungen werden abgemeldet.</p>
       <p class="form-error" id="password-error" role="alert" hidden></p>
       <p class="form-ok" id="password-ok" role="status" hidden></p>

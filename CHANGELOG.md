@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.7.1 — 2026-10-28
+
+Passwortfelder sind echte, klar erkennbare Passwortfelder mit Einblick.
+
+**Neu**
+- Jedes Passwortfeld hat ein eigenes Auge zum Ein- und Ausblenden
+  (Sicherheit: aktuell, neu, Wiederholung; ebenso auf der Anmeldeseite)
+- Das `type="password"` bleibt im Markup erhalten und wird nur zur Anzeige
+  umgeschaltet — Passwort-Manager und Vorschlagsfunktion des Browsers greifen weiter
+- `autocomplete`-Hinweise: `username` (unsichtbar, readonly), `current-password`,
+  `new-password` — der Browser erkennt damit Anmeldung und Passwortwechsel
+- Passwortstärke-Anzeige beim Tippen (Länge, Groß-/Kleinschreibung, Ziffern, Sonderzeichen)
+
+**Geändert**
+- Die frühere Checkbox „Passwörter anzeigen" ist ersetzt: pro Feld ein Auge,
+  damit man einzelne Felder gezielt prüfen kann
+
 ## v0.7.0 — 2026-10-28
 
 Geräteverwaltung: Jeder sieht seine angemeldeten Geräte und kann sie selbst abmelden.
