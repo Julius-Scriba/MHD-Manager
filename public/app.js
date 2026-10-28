@@ -1,31 +1,35 @@
-/* mhd-manager v2 · Frontend: Produkte + Chargen */
+/* mhd-manager v3 · Frontend: Produkte + Chargen + Kategorien + Auth */
 'use strict';
 
 const UNITS = ['kg', 'g', 'Stk', 'Pkg', 'l', 'ml', 'Dose', 'Flasche'];
-const STATUS_TEXT = { expired: 'abgelaufen', urgent: 'heute', soon: 'bald fällig', ok: 'ok' };
-const FREEZE_TEXT = { due: 'einfrieren', missed: 'zu spät', frozen: 'eingefroren', window: 'Frist läuft', none: '' };
+const PACES = [
+  ['schnell', 'Schnell (Warnung 1 Tag vorher)'],
+  ['mittel', 'Mittel (Warnung 3 Tage vorher)'],
+  ['langsam', 'Langsam (Warnung 14 Tage vorher)'],
+];
+const NEW_CATEGORY = '__new__';
 
 const state = {
-  products: [], counts: {}, today: '', warnDays: 7,
+  products: [], categories: [], counts: {}, today: '', warnDays: 7, user: null,
   search: '', filter: '', sort: 'mhd', open: new Set(),
   editProduct: null, editBatch: null, batchParent: null,
 };
 
 const $ = (s) => document.querySelector(s);
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-
 const fmtDate = (iso) => (iso ? iso.split('-').reverse().join('.') : '');
 const fmtQty = (n) => (Number(n) % 1 === 0 ? String(Number(n)) : String(Number(n).toFixed(2)).replace('.', ','));
 
-function relDays(n) {
-  if (n === 0) return 'heute';
-  if (n === 1) return 'morgen';
-  if (n === -1) return 'gestern';
-  return n > 0 ? `in ${n} Tagen` : `vor ${Math.abs(n)} Tagen`;
-}
-
 async function api(path, opts = {}) {
-  const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  const res = await fetch(path, {
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    ...opts,
+  });
+  if (res.status === 401) {
+    window.location.replace('/login.html');
+    throw new Error('Nicht angemeldet.');
+  }
   if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data.errors && data.errors.join(' ')) || data.error || `Fehler ${res.status}`);
@@ -35,6 +39,9 @@ async function api(path, opts = {}) {
 /* ---------- Laden ---------- */
 async function load() {
   try {
+    const [me, cats] = await Promise.all([api('/api/me'), api('/api/categories')]);
+    state.user = me.user;
+    state.categories = cats.categories;
     const data = await api('/api/overview');
     state.products = data.products;
     state.counts = data.counts;
@@ -42,22 +49,23 @@ async function load() {
     state.warnDays = data.warn_days;
     render();
   } catch (err) {
-    $('#subline').textContent = 'Verbindung fehlgeschlagen';
-    $('#list').innerHTML = `<p class="empty">Daten konnten nicht geladen werden.<br><small>${esc(err.message)}</small></p>`;
+    if (err.message !== 'Nicht angemeldet.') {
+      $('#subline').textContent = 'Daten konnten nicht geladen werden';
+      $('#list').innerHTML = `<p class="empty">Fehler beim Laden.<br><small>${esc(err.message)}</small></p>`;
+    }
   }
 }
 
 function visibleProducts() {
   const term = state.search.trim().toLowerCase();
   let list = state.products.filter((p) => {
-    if (!term && !state.filter) return true;
     if (term) {
       const hit = [p.name, p.category, p.location, p.notes].some((f) => String(f || '').toLowerCase().includes(term));
       if (!hit) return false;
     }
     if (state.filter === 'freeze') return p.batches.some((b) => b.quantity > 0 && (b.freeze_status === 'due' || b.freeze_status === 'missed'));
     if (state.filter === 'ok') return p.worst_status === 'ok';
-    if (state.filter) return p.batches.some((b) => b.quantity > 0 && b.status === state.filter);
+    if (state.filter) return p.batches.some((b) => b.quantity > 0 && (b.post_freeze_status || b.status) === state.filter);
     return true;
   });
   const by = {
@@ -75,7 +83,6 @@ function render() {
     ['expired', 'Abgelaufen'], ['urgent', 'Heute fällig'], ['freeze_due', 'Einfrieren'], ['soon', 'Bald fällig'],
   ].map(([k, l]) => `<div class="stat" data-k="${k}"><div class="n">${c[k] || 0}</div><div class="l">${l}</div></div>`).join('');
 
-  const totalQty = state.products.reduce((s, p) => s + p.total_quantity, 0);
   const nBatches = state.products.reduce((s, p) => s + p.active_batches, 0);
   $('#subline').textContent = state.products.length
     ? `${state.products.length} Produkte · ${nBatches} Chargen · Stand ${fmtDate(state.today)}`
@@ -87,40 +94,31 @@ function render() {
   if (!list.length) {
     box.innerHTML = '';
     empty.hidden = false;
-    empty.textContent = state.products.length
-      ? 'Kein Produkt passt zu Suche/Filter.'
-      : 'Tippe oben auf „Produkt", um das erste anzulegen.';
+    empty.textContent = state.products.length ? 'Kein Produkt passt zu Suche/Filter.' : 'Tippe oben auf „Produkt", um das erste anzulegen.';
     return;
   }
   empty.hidden = true;
   box.innerHTML = list.map(cardHtml).join('');
-
-  const uniq = (k) => [...new Set(state.products.map((p) => p[k]).filter(Boolean))].sort();
-  $('#categories').innerHTML = uniq('category').map((v) => `<option value="${esc(v)}"></option>`).join('');
-  $('#locations').innerHTML = uniq('location').map((v) => `<option value="${esc(v)}"></option>`).join('');
+  $('#locations').innerHTML = [...new Set(state.products.map((p) => p.location).filter(Boolean))]
+    .sort().map((v) => `<option value="${esc(v)}"></option>`).join('');
 }
 
-function chipClass(batch) {
-  if (batch.freeze_status === 'due' || batch.freeze_status === 'missed') return 'freeze';
-  return batch.status;
-}
+function statusChip(b) {
+  if (b.freeze_status === 'due') return `<span class="chip freeze">bis ${fmtDate(b.freeze_deadline)} einfrieren</span>`;
+  if (b.freeze_status === 'missed') return '<span class="chip freeze">einfrieren verpasst</span>';
 
-function statusChip(batch) {
-  if (batch.freeze_status === 'due') {
-    return `<span class="chip freeze">bis ${fmtDate(batch.freeze_deadline)} einfrieren</span>`;
-  }
-  if (batch.freeze_status === 'missed') return '<span class="chip freeze">einfrieren verpasst</span>';
-  if (batch.freeze_status === 'frozen') return '<span class="chip freeze">eingefroren</span>';
-  const t = STATUS_TEXT[batch.status] || batch.status;
-  const days = batch.status === 'urgent' ? 'heute' : batch.status === 'expired' ? `seit ${Math.abs(batch.days_left)} T.` : t;
-  return `<span class="chip ${batch.status}">${days}</span>`;
+  const status = b.post_freeze_status || b.status;
+  const days = b.post_freeze_status ? b.tk_days_left : b.days_left;
+  const label = status === 'expired' ? `abgelaufen (${Math.abs(days)} T.)`
+    : status === 'urgent' ? 'heute fällig'
+    : status === 'soon' ? `in ${days} T.`
+    : 'haltbar';
+  const tk = b.frozen_on ? '<span class="chip freeze">TK</span>' : '';
+  return `<span class="chip ${status}">${label}</span>${tk}`;
 }
 
 function cardHtml(p) {
   const open = state.open.has(p.id);
-  const worstKey = p.worst_status;
-  const freezeDue = p.batches.filter((b) => b.quantity > 0 && (b.freeze_status === 'due' || b.freeze_status === 'missed')).length;
-
   const headMeta = [
     p.active_batches ? `${p.active_batches} ${p.active_batches === 1 ? 'Charge' : 'Chargen'}` : 'keine Charge',
     `${fmtQty(p.total_quantity)} ${esc(p.unit)}`,
@@ -129,22 +127,21 @@ function cardHtml(p) {
     p.category ? esc(p.category) : '',
   ].filter(Boolean).join(' · ');
 
-  const rules = [
-    `Warnzeit ${p.warn_days_effective} T.`,
-    p.freeze_days !== null ? `einfrieren ${p.freeze_days} T. vorher` : '',
-  ].filter(Boolean).join(' · ');
+  const rules = [`Warnzeit ${p.warn_days_effective} T.`];
+  if (p.freeze_days !== null) rules.push(`einfrieren ${p.freeze_days} T. vor Frisch-MHD`);
+  if (p.tk_days) rules.push(`TK ${p.tk_days} T.`);
 
   const batches = p.batches.length
     ? p.batches.map((b) => batchHtml(b, p)).join('')
     : '<div class="batch-empty">Noch keine Charge erfasst.</div>';
 
-  return `<article class="card ${open ? 'open' : ''}" data-worst="${worstKey}" data-id="${p.id}">
+  return `<article class="card ${open ? 'open' : ''}" data-worst="${p.worst_status}" data-id="${p.id}">
     <button class="card-head" type="button" data-act="toggle" aria-expanded="${open}">
       <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <div class="card-title">
         <div class="name">${esc(p.name)} <span class="qty">${fmtQty(p.total_quantity)} ${esc(p.unit)}</span></div>
         <div class="meta"><span>${headMeta}</span></div>
-        <div class="meta"><span>${rules}</span>${freezeDue ? `<span class="chip freeze">${freezeDue}× einfrieren</span>` : ''}</div>
+        <div class="meta"><span>${rules.join(' · ')}</span>${p.freeze_due_count ? `<span class="chip freeze">${p.freeze_due_count}× einfrieren</span>` : ''}</div>
       </div>
       <div class="card-tools">
         <span class="icon-btn" role="button" tabindex="0" data-act="edit-product" title="Produkt bearbeiten" aria-label="Produkt bearbeiten">
@@ -162,18 +159,22 @@ function cardHtml(p) {
 }
 
 function batchHtml(b, p) {
-  const dayBig = b.days_left < 0 ? Math.abs(b.days_left) : b.days_left;
-  const dayUnit = b.days_left < 0 ? (Math.abs(b.days_left) === 1 ? 'Tag her' : 'Tage her') : b.days_left === 0 ? 'heute' : (b.days_left === 1 ? 'Tag' : 'Tage');
+  // Angezeigt wird die Frist, die gerade zählt: eingefroren → TK-MHD, sonst Frisch-MHD
+  const useTk = Boolean(b.tk_best_before);
+  const days = useTk ? b.tk_days_left : b.days_left;
+  const dayBig = days < 0 ? Math.abs(days) : days;
+  const dayUnit = days < 0 ? (Math.abs(days) === 1 ? 'Tag her' : 'Tage her') : days === 0 ? 'heute' : (days === 1 ? 'Tag' : 'Tage');
+  const dateLine = useTk ? `TK-MHD ${fmtDate(b.tk_best_before)}` : `Frisch-MHD ${fmtDate(b.best_before)}`;
 
   const info = [
-    `MHD ${fmtDate(b.best_before)}`,
+    dateLine,
     `<span>${fmtQty(b.quantity)} ${esc(p.unit)}</span>`,
     b.frozen_on ? `eingefroren ${fmtDate(b.frozen_on)}` : '',
     b.freeze_status === 'window' && b.freeze_deadline ? `bis ${fmtDate(b.freeze_deadline)} einfrieren` : '',
     b.note ? esc(b.note) : '',
   ].filter(Boolean).join(' · ');
 
-  const canFreeze = !b.frozen_on && p.freeze_days !== null && b.status !== 'expired';
+  const canFreeze = !b.frozen_on && p.tk_days && b.status !== 'expired';
 
   return `<div class="batch" data-status="${b.status}" data-batch="${b.id}">
     <div class="days"><div class="d">${dayBig}</div><div class="u">${dayUnit}</div></div>
@@ -193,26 +194,72 @@ function batchHtml(b, p) {
   </div>`;
 }
 
+/* ---------- Kategorien im Dropdown ---------- */
+function fillCategorySelect(selected) {
+  const sel = $('#category-select');
+  const opts = ['<option value="">— keine —</option>'];
+  for (const c of state.categories) {
+    if (!c.active) continue;
+    opts.push(`<option value="${esc(c.name)}">${esc(c.name)}</option>`);
+  }
+  opts.push(`<option value="${NEW_CATEGORY}">+ Neue Kategorie …</option>`);
+  sel.innerHTML = opts.join('');
+
+  const known = state.categories.some((c) => c.name.toLowerCase() === String(selected || '').toLowerCase());
+  if (selected && !known) {
+    // Altbestand: Kategorie existiert nicht in der Liste → als Eintrag ergänzen
+    sel.insertAdjacentHTML('beforeend', `<option value="${esc(selected)}">${esc(selected)}</option>`);
+  }
+  sel.value = selected || '';
+}
+
+$('#category-select').addEventListener('change', (e) => {
+  if (e.target.value !== NEW_CATEGORY) return;
+  e.target.value = '';
+  const name = prompt('Name der neuen Kategorie:');
+  if (!name || !name.trim()) return;
+  api('/api/categories', { method: 'POST', body: JSON.stringify({ name: name.trim() }) })
+    .then(async (created) => {
+      state.categories.push(created);
+      await load();
+      fillCategorySelect(created.name);
+    })
+    .catch((err) => alert(err.message));
+});
+
 /* ---------- Produkt-Dialog ---------- */
 const productDialog = $('#product-dialog');
 const productForm = $('#product-form');
 $('#unit-select').innerHTML = UNITS.map((u) => `<option value="${u}">${u}</option>`).join('');
+$('#pace-select').innerHTML = PACES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+
+const PACE_HINT = {
+  schnell: 'Warnung 1 Tag vor MHD — für Ware, die schnell weggeht.',
+  mittel: 'Warnung 3 Tage vor MHD.',
+  langsam: 'Warnung 14 Tage vor MHD — für Ware, die lange liegt.',
+};
+const updatePaceHint = () => { $('#pace-hint').textContent = PACE_HINT[productForm.pace.value] || ''; };
+$('#pace-select').addEventListener('change', updatePaceHint);
 
 function openProductDialog(product) {
   state.editProduct = product || null;
   $('#product-title').textContent = product ? 'Produkt bearbeiten' : 'Neues Produkt';
   $('#product-error').hidden = true;
   productForm.reset();
-  productForm.unit.value = 'kg';
+  $('#unit-select').value = 'kg';
+  $('#pace-select').value = 'mittel';
+  fillCategorySelect(product?.category || '');
   if (product) {
     productForm.name.value = product.name;
-    productForm.category.value = product.category || '';
     productForm.location.value = product.location || '';
-    productForm.unit.value = product.unit;
+    $('#unit-select').value = product.unit;
+    $('#pace-select').value = product.pace || 'mittel';
     productForm.warn_days.value = product.warn_days ?? '';
     productForm.freeze_days.value = product.freeze_days ?? '';
+    productForm.tk_days.value = product.tk_days ?? '';
     productForm.notes.value = product.notes || '';
   }
+  updatePaceHint();
   productDialog.showModal();
   if (!product) setTimeout(() => productForm.name.focus(), 30);
 }
@@ -221,9 +268,15 @@ productForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const raw = Object.fromEntries(new FormData(productForm).entries());
   const payload = {
-    name: raw.name, category: raw.category, location: raw.location, unit: raw.unit, notes: raw.notes,
+    name: raw.name,
+    category: raw.category === NEW_CATEGORY ? '' : raw.category,
+    location: raw.location,
+    unit: raw.unit,
+    pace: raw.pace,
+    notes: raw.notes,
     warn_days: raw.warn_days === '' ? null : raw.warn_days,
     freeze_days: raw.freeze_days === '' ? null : raw.freeze_days,
+    tk_days: raw.tk_days === '' ? null : raw.tk_days,
   };
   try {
     if (state.editProduct) await api(`/api/products/${state.editProduct.id}`, { method: 'PUT', body: JSON.stringify(payload) });
@@ -245,7 +298,7 @@ function openBatchDialog(product, batch) {
   state.editBatch = batch || null;
   state.batchParent = product;
   $('#batch-title').textContent = batch ? 'Charge bearbeiten' : 'Neue Charge';
-  $('#batch-sub').textContent = product.name;
+  $('#batch-sub').textContent = `${product.name}${product.tk_days ? ` · TK ${product.tk_days} Tage` : ''}`;
   $('#batch-unit').textContent = `(${product.unit})`;
   $('#batch-error').hidden = true;
   batchForm.reset();
@@ -318,7 +371,7 @@ $('#list').addEventListener('click', async (e) => {
   if (act === 'edit-batch' && batch) { e.stopPropagation(); return openBatchDialog(product, batch); }
   if (act === 'del-batch' && batch) {
     e.stopPropagation();
-    if (!confirm(`Charge (MHD ${fmtDate(batch.best_before)}, ${fmtQty(batch.quantity)} ${product.unit}) löschen?`)) return;
+    if (!confirm(`Charge (Frisch-MHD ${fmtDate(batch.best_before)}, ${fmtQty(batch.quantity)} ${product.unit}) löschen?`)) return;
     try { await api(`/api/batches/${batch.id}`, { method: 'DELETE' }); await load(); } catch (err) { alert(err.message); }
   }
 });
@@ -344,6 +397,7 @@ const settingsDialog = $('#settings-dialog');
 const settingsForm = $('#settings-form');
 $('#btn-settings').addEventListener('click', () => {
   settingsForm.warn_days.value = state.warnDays;
+  $('#user-line').textContent = state.user ? `Angemeldet als ${state.user.username}` : '';
   settingsDialog.showModal();
 });
 settingsForm.addEventListener('submit', async (e) => {
@@ -356,6 +410,10 @@ settingsForm.addEventListener('submit', async (e) => {
   } catch (err) { alert(err.message); }
 });
 $('#btn-export').addEventListener('click', () => { window.location.href = '/api/export'; });
+$('#btn-logout').addEventListener('click', async () => {
+  await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+  window.location.replace('/login.html');
+});
 
 /* ---------- Gemeinsam ---------- */
 $('#btn-add-product').addEventListener('click', () => openProductDialog(null));

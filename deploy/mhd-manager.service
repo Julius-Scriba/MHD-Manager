@@ -8,6 +8,7 @@ Type=simple
 User=mhd
 Group=mhd
 WorkingDirectory=/opt/mhd-manager
+EnvironmentFile=-/etc/mhd-manager.env
 Environment=NODE_ENV=production
 Environment=PORT=8091
 Environment=HOST=127.0.0.1

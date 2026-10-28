@@ -194,3 +194,17 @@ dialog.sheet h2 { margin: 0 0 14px; font-size: 17px; }
 .hint { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
 .sheet-actions { display: flex; justify-content: flex-end; gap: 8px; margin: 18px 0 0; padding: 0; flex-wrap: wrap; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- Login ---------- */
+.login-body { display: grid; place-items: center; min-height: 100dvh; padding: 20px; }
+.login-wrap { width: 100%; max-width: 380px; }
+.login-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 18px;
+  padding: 28px 24px; box-shadow: var(--shadow);
+}
+.login-logo { width: 34px; height: 34px; color: var(--accent); }
+.login-card h1 { font-size: 19px; margin: 10px 0 2px; }
+.login-sub { margin: 0 0 20px; color: var(--muted); font-size: 13.5px; }
+.login-card .field + .field { margin-top: 12px; }
+.login-btn { width: 100%; justify-content: center; margin-top: 18px; height: 44px; }
+.hint.full-hint { grid-column: 1 / -1; margin: -6px 0 0; }

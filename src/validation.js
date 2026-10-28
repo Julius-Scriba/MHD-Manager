@@ -1,5 +1,9 @@
 // mhd-manager · Validierung + Statuslogik (ohne DB, testbar)
 export const UNITS = ['kg', 'g', 'Stk', 'Pkg', 'l', 'ml', 'Dose', 'Flasche'];
+export const PACES = ['schnell', 'mittel', 'langsam'];
+
+/** Warnzeit-Vorschlag je Verkaufstempo (Tage vor MHD). Manueller Wert überschreibt. */
+export const PACE_WARN_DAYS = { schnell: 1, mittel: 3, langsam: 14 };
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -35,23 +39,35 @@ export function statusOf(days, warnDays = 7) {
   return 'ok';
 }
 
-/**
- * Frist zum Einfrieren: letzter Tag, an dem noch eingefroren werden darf.
- * null = für dieses Produkt ist Einfrieren nicht vorgesehen.
- */
+/** Effektive Warnzeit: manueller Wert gewinnt, sonst Vorschlag aus dem Verkaufstempo. */
+export function effectiveWarnDays(product, fallbackWarnDays = 7) {
+  if (Number.isInteger(product.warn_days) && product.warn_days >= 0) return product.warn_days;
+  const fromPace = PACE_WARN_DAYS[product.pace];
+  if (Number.isInteger(fromPace)) return fromPace;
+  return fallbackWarnDays;
+}
+
+/** Letzter Tag, an dem eine Charge noch eingefroren werden darf. */
 export function freezeDeadline(bestBefore, freezeDays) {
   if (!Number.isFinite(freezeDays) || freezeDays < 0) return null;
   if (!isValidDate(bestBefore)) return null;
   return addDays(bestBefore, -freezeDays);
 }
 
+/** TK-MHD: Einfriertag + TK-Haltbarkeit in Tagen. */
+export function frozenBestBefore(frozenOn, tkDays) {
+  if (!isValidDate(frozenOn)) return null;
+  if (!Number.isFinite(tkDays) || tkDays <= 0) return null;
+  return addDays(frozenOn, tkDays);
+}
+
 /**
  * freeze_status:
- *   none     – kein Einfrieren vorgesehen
- *   frozen   – bereits eingefroren
- *   due      – jetzt einfrieren (Frist erreicht/überschritten, noch nicht eingefroren)
- *   window   – Frist läuft, noch Zeit
- *   missed   – Frist vorbei und MHD vorbei
+ *   none      – kein Einfrieren vorgesehen
+ *   frozen    – bereits eingefroren
+ *   due       – jetzt einfrieren (Frist erreicht/überschritten, noch nicht eingefroren)
+ *   window    – Frist läuft, noch Zeit
+ *   missed    – Frist vorbei und Frisch-MHD vorbei
  */
 export function freezeStatus({ bestBefore, freezeDays, frozenOn }, today = todayUTC()) {
   if (frozenOn) return 'frozen';
@@ -84,11 +100,21 @@ export function validateProduct(body = {}) {
   const unit = str(body.unit, 20, 'kg') || 'kg';
   if (!UNITS.includes(unit)) errors.push('Einheit unbekannt.');
 
+  const pace = str(body.pace, 20, 'mittel') || 'mittel';
+  if (!PACES.includes(pace)) errors.push('Verkaufstempo unbekannt.');
+
   const warn_days = intOrNull(body.warn_days, 0, 365);
-  if (warn_days === undefined) errors.push('Warnzeit muss eine ganze Zahl zwischen 0 und 365 sein.');
+  if (warn_days === undefined) errors.push('Warnzeit muss eine ganze Zahl zwischen 0 und 365 sein (leer = aus Verkaufstempo).');
 
   const freeze_days = intOrNull(body.freeze_days, 0, 60);
   if (freeze_days === undefined) errors.push('Einfrier-Vorlauf muss eine ganze Zahl zwischen 0 und 60 sein (leer = kein Einfrieren).');
+
+  const tk_days = intOrNull(body.tk_days, 1, 3650);
+  if (tk_days === undefined) errors.push('TK-Haltbarkeit muss eine ganze Zahl zwischen 1 und 3650 Tagen sein.');
+
+  if (freeze_days !== null && freeze_days !== undefined && (tk_days === null || tk_days === undefined)) {
+    errors.push('Wenn eingefroren werden kann, muss die TK-Haltbarkeit in Tagen angegeben werden.');
+  }
 
   return {
     ok: errors.length === 0,
@@ -98,8 +124,10 @@ export function validateProduct(body = {}) {
       category: str(body.category, 60),
       unit,
       location: str(body.location, 60),
+      pace,
       warn_days,
       freeze_days,
+      tk_days,
       notes: str(body.notes, 500),
     },
   };
@@ -125,11 +153,14 @@ export function validateBatch(body = {}) {
   return {
     ok: errors.length === 0,
     errors,
-    value: {
-      quantity,
-      best_before,
-      frozen_on,
-      note: str(body.note, 300),
-    },
+    value: { quantity, best_before, frozen_on, note: str(body.note, 300) },
   };
+}
+
+/** Kategorie-Name validieren. */
+export function validateCategoryName(raw) {
+  const name = str(raw, 60);
+  if (!name) return { ok: false, error: 'Kategoriename ist Pflichtfeld.' };
+  if (name.length < 2) return { ok: false, error: 'Kategoriename braucht mindestens 2 Zeichen.' };
+  return { ok: true, value: name };
 }

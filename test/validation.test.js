@@ -69,10 +69,17 @@ test('validateProduct: Name Pflicht, Warnzeit und Vorlauf optional', () => {
   assert.equal(validateProduct({ name: 'X', freeze_days: 99 }).ok, false);
   assert.equal(validateProduct({ name: 'X', unit: 'Eimer' }).ok, false);
 
-  const withRules = validateProduct({ name: 'Hack', warn_days: '2', freeze_days: '1', unit: 'kg' });
+  // Einfrieren ohne TK-Haltbarkeit ist unzulässig — beides gehört zusammen.
+  const missingTk = validateProduct({ name: 'Hack', warn_days: '2', freeze_days: '1', unit: 'kg' });
+  assert.equal(missingTk.ok, false);
+  assert.match(missingTk.errors.join(' '), /TK-Haltbarkeit/);
+
+  const withRules = validateProduct({ name: 'Hack', warn_days: '2', freeze_days: '1', tk_days: '90', unit: 'kg' });
   assert.equal(withRules.ok, true);
   assert.equal(withRules.value.warn_days, 2);
   assert.equal(withRules.value.freeze_days, 1);
+  assert.equal(withRules.value.tk_days, 90);
+  assert.equal(withRules.value.pace, 'mittel');
 });
 
 test('validateBatch: MHD Pflicht, Menge numerisch, Einfrieren optional', () => {

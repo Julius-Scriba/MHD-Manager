@@ -40,7 +40,7 @@
     <select id="filter" aria-label="Nach Status filtern">
       <option value="">Alle</option>
       <option value="expired">Abgelaufen</option>
-      <option value="urgent">Dringend (heute)</option>
+      <option value="urgent">Heute fällig</option>
       <option value="soon">Bald fällig</option>
       <option value="freeze">Einfrieren fällig</option>
     </select>
@@ -55,7 +55,6 @@
   <p id="empty" class="empty" hidden></p>
 </main>
 
-<!-- Produkt-Formular -->
 <dialog id="product-dialog" class="sheet">
   <form id="product-form" method="dialog" novalidate>
     <h2 id="product-title">Neues Produkt</h2>
@@ -64,9 +63,9 @@
         <span>Name *</span>
         <input name="name" type="text" maxlength="120" required autocomplete="off" placeholder="z. B. Rinderhackfleisch">
       </label>
-      <label class="field">
+      <label class="field full">
         <span>Kategorie</span>
-        <input name="category" type="text" maxlength="60" list="categories" autocomplete="off" placeholder="z. B. Fleisch">
+        <select name="category" id="category-select"></select>
       </label>
       <label class="field">
         <span>Ort</span>
@@ -76,13 +75,22 @@
         <span>Einheit</span>
         <select name="unit" id="unit-select"></select>
       </label>
+      <label class="field full">
+        <span>Verkaufstempo</span>
+        <select name="pace" id="pace-select"></select>
+      </label>
+      <p class="hint full-hint" id="pace-hint"></p>
       <label class="field">
-        <span>Warnzeit (Tage vor MHD)</span>
-        <input name="warn_days" type="number" min="0" max="365" step="1" inputmode="numeric" placeholder="Standard">
+        <span>Warnzeit überschreiben (Tage)</span>
+        <input name="warn_days" type="number" min="0" max="365" step="1" inputmode="numeric" placeholder="aus Tempo">
+      </label>
+      <label class="field">
+        <span>Einfrieren: Tage vor Frisch-MHD</span>
+        <input name="freeze_days" type="number" min="0" max="60" step="1" inputmode="numeric" placeholder="leer = kein Einfrieren">
       </label>
       <label class="field full">
-        <span>Einfrieren: spätestens X Tage vor MHD</span>
-        <input name="freeze_days" type="number" min="0" max="60" step="1" inputmode="numeric" placeholder="leer = kein Einfrieren">
+        <span>TK-Haltbarkeit in Tagen (ab Einfrieren)</span>
+        <input name="tk_days" type="number" min="1" max="3650" step="1" inputmode="numeric" placeholder="z. B. 90">
       </label>
       <label class="field full">
         <span>Notiz</span>
@@ -97,14 +105,13 @@
   </form>
 </dialog>
 
-<!-- Chargen-Formular -->
 <dialog id="batch-dialog" class="sheet">
   <form id="batch-form" method="dialog" novalidate>
     <h2 id="batch-title">Neue Charge</h2>
     <p class="sheet-sub" id="batch-sub"></p>
     <div class="grid">
       <label class="field">
-        <span>MHD *</span>
+        <span>Frisch-MHD *</span>
         <input name="best_before" type="date" required>
       </label>
       <label class="field">
@@ -112,7 +119,7 @@
         <input name="quantity" type="number" min="0" max="999999" step="any" inputmode="decimal" value="1">
       </label>
       <label class="field full">
-        <span>Eingefroren am</span>
+        <span>Bereits eingefroren am</span>
         <input name="frozen_on" type="date">
       </label>
       <label class="field full">
@@ -128,7 +135,6 @@
   </form>
 </dialog>
 
-<!-- Einstellungen -->
 <dialog id="settings-dialog" class="sheet">
   <form id="settings-form" method="dialog" novalidate>
     <h2>Einstellungen</h2>
@@ -136,16 +142,17 @@
       <span>Standard-Warnzeit in Tagen</span>
       <input name="warn_days" type="number" min="0" max="365" step="1" required>
     </label>
-    <p class="hint">Gilt für Produkte ohne eigene Warnzeit.</p>
+    <p class="hint">Gilt nur, wenn weder Verkaufstempo noch manuelle Warnzeit greifen.</p>
+    <p class="hint" id="user-line"></p>
     <menu class="sheet-actions">
       <button class="btn ghost" type="button" id="btn-export">JSON-Export</button>
-      <button class="btn ghost" type="button" data-close>Abbrechen</button>
+      <button class="btn ghost" type="button" id="btn-logout">Abmelden</button>
+      <button class="btn ghost" type="button" data-close>Schließen</button>
       <button class="btn primary" type="submit">Speichern</button>
     </menu>
   </form>
 </dialog>
 
-<datalist id="categories"></datalist>
 <datalist id="locations"></datalist>
 
 <script src="/app.js"></script>
