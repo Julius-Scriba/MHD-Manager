@@ -3,7 +3,7 @@ import express from 'express';
 import { openDb } from './db.js';
 import {
   validateProduct, validateBatch, validateCategoryName, daysUntil, statusOf, todayUTC,
-  isValidDate, freezeDeadline, freezeStatus, frozenBestBefore, effectiveWarnDays, PACES,
+  isValidDate, freezeDeadline, freezeStatus, frozenBestBefore, effectiveWarnDays, PACES, checkIntervalDays,
 } from './validation.js';
 import { verifyPassword, newSessionToken, isValidSessionToken, LoginLimiter } from './auth.js';
 import { hashPassword } from './auth.js';
@@ -54,10 +54,11 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     products: db.prepare('SELECT * FROM products WHERE archived = 0 ORDER BY name COLLATE NOCASE'),
     product: db.prepare('SELECT * FROM products WHERE id = ?'),
     insertProduct: db.prepare(`INSERT INTO products
-      (name, category, unit, location, warn_days, freeze_days, tk_days, pace, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+      (name, category, unit, location, warn_days, freeze_days, tk_days, pace, check_days, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
     updateProduct: db.prepare(`UPDATE products SET name=?, category=?, unit=?, location=?,
-      warn_days=?, freeze_days=?, tk_days=?, pace=?, notes=?, updated_at=datetime('now') WHERE id=?`),
+      warn_days=?, freeze_days=?, tk_days=?, pace=?, check_days=?, notes=?, updated_at=datetime('now') WHERE id=?`),
+    markChecked: db.prepare("UPDATE batches SET checked_at = datetime('now') WHERE id = ?"),
     deleteProduct: db.prepare('DELETE FROM products WHERE id = ?'),
     batchesOf: db.prepare('SELECT * FROM batches WHERE product_id = ? ORDER BY best_before ASC, id ASC'),
     allBatches: db.prepare('SELECT * FROM batches ORDER BY best_before ASC, id ASC'),
@@ -66,6 +67,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
       VALUES (?, ?, ?, ?, ?)`),
     updateBatch: db.prepare(`UPDATE batches SET quantity=?, best_before=?, frozen_on=?, note=?,
       updated_at=datetime('now') WHERE id=?`),
+    updateBatchQty: db.prepare("UPDATE batches SET quantity=?, updated_at=datetime('now') WHERE id=?"),
     deleteBatch: db.prepare('DELETE FROM batches WHERE id = ?'),
     logEvent: db.prepare(`INSERT INTO events
       (batch_id, product_id, type, detail, user_id, username, entity, entity_name, ip)
@@ -121,6 +123,12 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
       freeze_status: fStatus,
       tk_best_before: tkMhd,
       tk_days_left: tkMhd ? relevantDays : null,
+      // Bestandsprüfung: wie lange ist die Zählung her, wann ist sie fällig?
+      check_days: checkIntervalDays(product, 14),
+      checked_at: batch.checked_at || null,
+      check_days_ago: batch.checked_at ? Math.max(0, -daysUntil(String(batch.checked_at).slice(0, 10), today)) : null,
+      check_due: !batch.checked_at
+        || -daysUntil(String(batch.checked_at).slice(0, 10), today) > checkIntervalDays(product, 14),
     };
   }
 
@@ -148,6 +156,13 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
       freeze_due_count: active.filter((b) => b.freeze_status === 'due' || b.freeze_status === 'missed').length,
     };
   }
+
+  const loadBatchOrFail = (id) => {
+    const row = q.batch.get(id);
+    if (!row) return null;
+    const product = q.product.get(row.product_id);
+    return decorateBatch(row, product || {}, todayUTC());
+  };
 
   const loadProduct = (id, today) => {
     const p = q.product.get(id);
@@ -423,7 +438,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     if (!ok) return res.status(400).json({ errors });
     const info = q.insertProduct.run(
       value.name, value.category, value.unit, value.location,
-      value.warn_days, value.freeze_days, value.tk_days, value.pace, value.notes
+      value.warn_days, value.freeze_days, value.tk_days, value.pace, value.check_days, value.notes
     );
     const id = Number(info.lastInsertRowid);
     ql('product_created', { req, productId: id, entityName: value.name, detail: `${value.category || 'ohne Kategorie'} · ${value.unit}` });
@@ -438,10 +453,59 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     if (!ok) return res.status(400).json({ errors });
     q.updateProduct.run(
       value.name, value.category, value.unit, value.location,
-      value.warn_days, value.freeze_days, value.tk_days, value.pace, value.notes, id
+      value.warn_days, value.freeze_days, value.tk_days, value.pace, value.check_days, value.notes, id
     );
     ql('product_updated', { req, productId: id, entityName: value.name, detail: describeProductChange(before, value) });
     res.json(loadProduct(id, todayUTC()));
+  });
+
+  /* ---------- Bestandsprüfung ---------- */
+  /** Eine Charge als gezählt markieren. quantity optional korrigieren. */
+  api.post('/batches/:id/check', (req, res) => {
+    const id = Number(req.params.id);
+    const existing = q.batch.get(id);
+    if (!existing) return res.status(404).json({ error: 'Charge nicht gefunden.' });
+
+    const body = req.body || {};
+    const rawQty = body.quantity;
+    let corrected = false;
+
+    if (rawQty !== undefined && rawQty !== null && rawQty !== '') {
+      const qty = Number(rawQty);
+      if (!Number.isFinite(qty) || qty < 0 || qty > 999999) {
+        return res.status(400).json({ error: 'Menge muss zwischen 0 und 999999 liegen.' });
+      }
+      if (qty !== existing.quantity) {
+        q.updateBatchQty.run(qty, id);
+        corrected = true;
+      }
+    }
+
+    q.markChecked.run(id);
+    const product = q.product.get(existing.product_id);
+    ql('batch_checked', {
+      req, productId: existing.product_id, batchId: id, entity: 'batch',
+      entityName: product ? product.name : '',
+      detail: corrected
+        ? `Menge ${existing.quantity} → ${Number(rawQty)}`
+        : 'bestätigt',
+    });
+    res.json(loadBatchOrFail(id));
+  });
+
+  /** Mehrere Chargen in einem Rutsch als gezählt markieren (Sammelbestätigung). */
+  api.post('/batches/check', (req, res) => {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Number.isInteger) : [];
+    if (!ids.length) return res.status(400).json({ error: 'Keine Chargen angegeben.' });
+    let done = 0;
+    for (const id of ids) {
+      const row = q.batch.get(id);
+      if (!row || row.quantity <= 0) continue;
+      q.markChecked.run(id);
+      done += 1;
+    }
+    ql('batch_checked', { req, entity: 'batch', entityName: '', detail: `${done} Charge(n) als bestätigt markiert` });
+    res.json({ checked: done });
   });
 
   api.delete('/products/:id', (req, res) => {

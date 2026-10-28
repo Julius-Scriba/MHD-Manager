@@ -55,6 +55,27 @@
   <p id="empty" class="empty" hidden></p>
 </main>
 
+<!-- Bestandsprüfung: eine Charge zählen und bestätigen -->
+<dialog id="check-dialog" class="sheet">
+  <form id="check-form" novalidate>
+    <h2 id="check-title">Charge prüfen</h2>
+    <p class="sheet-sub" id="check-sub"></p>
+    <label class="field full">
+      <span>Gezählte Menge</span>
+      <input name="quantity" id="check-qty" type="number" min="0" max="999999" step="any" inputmode="decimal" required>
+    </label>
+    <p class="hint" id="check-hint"></p>
+    <p class="form-error" id="check-error" role="alert" hidden></p>
+    <div class="section-actions spread">
+      <button class="btn ghost" type="button" id="check-cancel">Abbrechen</button>
+      <button class="btn primary" type="submit" id="check-save">Bestätigen</button>
+    </div>
+    <div class="section-actions">
+      <button class="btn danger small" type="button" id="check-empty">Charge ist leer — löschen</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="product-dialog" class="sheet">
   <form id="product-form" method="dialog" novalidate>
     <h2 id="product-title">Neues Produkt</h2>
@@ -87,6 +108,10 @@
       <label class="field">
         <span>Einfrieren: Tage vor Frisch-MHD</span>
         <input name="freeze_days" type="number" min="0" max="60" step="1" inputmode="numeric" placeholder="leer = kein Einfrieren">
+      </label>
+      <label class="field">
+        <span>Bestand prüfen alle (Tage)</span>
+        <input name="check_days" type="number" min="1" max="365" step="1" inputmode="numeric" placeholder="aus Tempo">
       </label>
       <label class="field full">
         <span>TK-Haltbarkeit in Tagen (ab Einfrieren)</span>

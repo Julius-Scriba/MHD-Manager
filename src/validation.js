@@ -2,6 +2,20 @@
 export const UNITS = ['kg', 'g', 'Stk', 'Pkg', 'l', 'ml', 'Dose', 'Flasche'];
 export const PACES = ['schnell', 'mittel', 'langsam'];
 
+/**
+ * Prüf-Intervall in Tagen je Verkaufstempo (Bestandskontrolle).
+ * Kurzlebige Ware (Fleisch, Milch, Salat) dreht schnell um → wöchentlich.
+ * Lange liegende Ware braucht keinen engen Rhythmus.
+ */
+export const PACE_CHECK_DAYS = { schnell: 7, mittel: 14, langsam: 30 };
+
+export function checkIntervalDays(product, fallback = 14) {
+  if (Number.isInteger(product.check_days) && product.check_days >= 1) return product.check_days;
+  const fromPace = PACE_CHECK_DAYS[product.pace];
+  if (Number.isInteger(fromPace)) return fromPace;
+  return fallback;
+}
+
 /** Warnzeit-Vorschlag je Verkaufstempo (Tage vor MHD). Manueller Wert überschreibt. */
 export const PACE_WARN_DAYS = { schnell: 1, mittel: 3, langsam: 14 };
 
@@ -112,6 +126,11 @@ export function validateProduct(body = {}) {
   const tk_days = intOrNull(body.tk_days, 1, 3650);
   if (tk_days === undefined) errors.push('TK-Haltbarkeit muss eine ganze Zahl zwischen 1 und 3650 Tagen sein.');
 
+  const check_days = intOrNull(body.check_days, 1, 365);
+  if (check_days === undefined) {
+    errors.push('Prüf-Intervall muss eine ganze Zahl zwischen 1 und 365 Tagen sein (leer = aus Verkaufstempo).');
+  }
+
   if (freeze_days !== null && freeze_days !== undefined && (tk_days === null || tk_days === undefined)) {
     errors.push('Wenn eingefroren werden kann, muss die TK-Haltbarkeit in Tagen angegeben werden.');
   }
@@ -128,6 +147,7 @@ export function validateProduct(body = {}) {
       warn_days,
       freeze_days,
       tk_days,
+      check_days,
       notes: str(body.notes, 500),
     },
   };

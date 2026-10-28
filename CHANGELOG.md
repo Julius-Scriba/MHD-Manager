@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.8.0 — 2026-10-28
+
+Bestandsprüfung: zählen statt raten, mit drei Zuständen und eigenem Prüfrhythmus.
+
+**Neu**
+- Prüf-Intervall je Produkt (`check_days`), sonst aus dem Verkaufstempo:
+  schnell = 7 Tage, mittel = 14 Tage, langsam = 30 Tage
+- Charge zeigt „prüfen", wenn die letzte Zählung älter als das Intervall ist
+  (noch nie gezählt = immer fällig)
+- Zähl-Dialog je Charge: erfasste Menge vorbelegt, Bestätigen oder korrigieren
+- „Charge ist leer — löschen": Menge 0 und Charge entfernen, **Produkt bleibt bestehen**
+- `POST /api/batches/:id/check` (mit optionaler Mengenkorrektur) und
+  `POST /api/batches/check` (Sammelbestätigung)
+- Protokolleintrag `batch_checked`, bei Korrektur mit „alt → neu"
+
+**Geändert**
+- Verkaufstempo-Hinweis nennt jetzt auch den Prüfrhythmus
+
+**Zweiter Hostname**
+- `https://mhd2.unknownengine.com` als eigener Vhost mit eigenem Zertifikat,
+  weil einzelne Resolver `mhd` nicht auflösen. Zwei getrennte server-Blöcke —
+  ein gemeinsamer Block liefert immer nur das erste Zertifikat aus.
+
 ## v0.7.2 — 2026-10-28
 
 Passwort setzen im Benutzer-Tab ohne Browser-Dialog.

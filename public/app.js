@@ -169,6 +169,9 @@ function batchHtml(b, p) {
   const dayUnit = days < 0 ? (Math.abs(days) === 1 ? 'Tag her' : 'Tage her') : days === 0 ? 'heute' : (days === 1 ? 'Tag' : 'Tage');
   const dateLine = useTk ? `TK-MHD ${fmtDate(b.tk_best_before)}` : `Frisch-MHD ${fmtDate(b.best_before)}`;
 
+  const checkChip = b.check_due
+    ? '<span class="chip check-due" title="Bestand seit dem letzten Zählen zu lange nicht geprüft">prüfen</span>'
+    : '';
   const info = [
     dateLine,
     `<span>${fmtQty(b.quantity)} ${esc(p.unit)}</span>`,
@@ -182,10 +185,11 @@ function batchHtml(b, p) {
   return `<div class="batch" data-status="${b.status}" data-batch="${b.id}">
     <div class="days"><div class="d">${dayBig}</div><div class="u">${dayUnit}</div></div>
     <div class="batch-info">
-      <div class="l1">${esc(p.name)} ${statusChip(b)}</div>
+      <div class="l1">${esc(p.name)} ${statusChip(b)} ${checkChip}</div>
       <div class="l2">${info}</div>
     </div>
     <div class="batch-actions">
+      <button class="btn ghost small" type="button" data-act="check-batch" title="Bestand zählen">${b.check_due ? 'Zählen' : 'Gezählt'}</button>
       ${canFreeze ? `<button class="btn freeze small" type="button" data-act="freeze">Einfrieren</button>` : ''}
       <span class="icon-btn" role="button" tabindex="0" data-act="edit-batch" title="Charge bearbeiten" aria-label="Charge bearbeiten">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
@@ -196,6 +200,70 @@ function batchHtml(b, p) {
     </div>
   </div>`;
 }
+
+/* ---------- Bestandsprüfung: eine Charge zählen ---------- */
+const checkDialog = $('#check-dialog');
+const checkForm = $('#check-form');
+let checkTarget = null;
+
+function openCheckSheet(product, batch) {
+  checkTarget = { product, batch };
+  checkForm.reset();
+  $('#check-error').hidden = true;
+  $('#check-title').textContent = product.name;
+  $('#check-sub').textContent = `Frisch-MHD ${fmtDate(batch.best_before)}${batch.frozen_on ? ` · eingefroren ${fmtDate(batch.frozen_on)}` : ''}`;
+  $('#check-qty').value = String(batch.quantity);
+  $('#check-hint').textContent = `Erfasst sind ${fmtQty(batch.quantity)} ${product.unit}. Stimmt die Zahl, einfach bestätigen.`;
+  checkDialog.showModal();
+  setTimeout(() => { $('#check-qty').focus(); $('#check-qty').select(); }, 40);
+}
+
+$('#check-cancel').addEventListener('click', () => checkDialog.close());
+checkDialog.addEventListener('close', () => { checkTarget = null; });
+
+$('#check-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!checkTarget) return;
+  const qty = Number($('#check-qty').value);
+  if (!Number.isFinite(qty) || qty < 0) {
+    $('#check-error').textContent = 'Bitte eine Menge ab 0 eingeben.';
+    $('#check-error').hidden = false;
+    return;
+  }
+  const btn = $('#check-save');
+  btn.disabled = true;
+  try {
+    await api(`/api/batches/${checkTarget.batch.id}/check`, {
+      method: 'POST', body: JSON.stringify({ quantity: qty }),
+    });
+    if (qty === 0) {
+      await api(`/api/batches/${checkTarget.batch.id}`, { method: 'DELETE' });
+    }
+    checkDialog.close();
+    await load();
+  } catch (err) {
+    $('#check-error').textContent = err.message;
+    $('#check-error').hidden = false;
+    btn.disabled = false;
+  }
+});
+
+/* „Charge ist leer": Menge 0 und Charge entfernen — Produkt bleibt bestehen. */
+$('#check-empty').addEventListener('click', async (e) => {
+  if (!checkTarget) return;
+  const { product, batch } = checkTarget;
+  if (!confirm(`Charge (${fmtQty(batch.quantity)} ${product.unit}, MHD ${fmtDate(batch.best_before)}) entfernen? Das Produkt bleibt bestehen.`)) return;
+  e.currentTarget.disabled = true;
+  try {
+    await api(`/api/batches/${batch.id}`, { method: 'DELETE' });
+    checkDialog.close();
+    await load();
+  } catch (err) {
+    $('#check-error').textContent = err.message;
+    $('#check-error').hidden = false;
+    e.currentTarget.disabled = false;
+  }
+});
 
 /* ---------- Kategorien im Dropdown ---------- */
 function fillCategorySelect(selected) {
@@ -237,9 +305,9 @@ $('#unit-select').innerHTML = UNITS.map((u) => `<option value="${u}">${u}</optio
 $('#pace-select').innerHTML = PACES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
 
 const PACE_HINT = {
-  schnell: 'Warnung 1 Tag vor MHD — für Ware, die schnell weggeht.',
-  mittel: 'Warnung 3 Tage vor MHD.',
-  langsam: 'Warnung 14 Tage vor MHD — für Ware, die lange liegt.',
+  schnell: 'Warnung 1 Tag vor MHD, Bestand prüfen jede Woche — für Ware, die schnell weggeht.',
+  mittel: 'Warnung 3 Tage vor MHD, Bestand prüfen alle 14 Tage.',
+  langsam: 'Warnung 14 Tage vor MHD, Bestand prüfen alle 30 Tage — für Ware, die lange liegt.',
 };
 const updatePaceHint = () => { $('#pace-hint').textContent = PACE_HINT[productForm.pace.value] || ''; };
 $('#pace-select').addEventListener('change', updatePaceHint);
@@ -260,6 +328,7 @@ function openProductDialog(product) {
     productForm.warn_days.value = product.warn_days ?? '';
     productForm.freeze_days.value = product.freeze_days ?? '';
     productForm.tk_days.value = product.tk_days ?? '';
+    productForm.check_days.value = product.check_days ?? '';
     productForm.notes.value = product.notes || '';
   }
   updatePaceHint();
@@ -280,6 +349,7 @@ productForm.addEventListener('submit', async (e) => {
     warn_days: raw.warn_days === '' ? null : raw.warn_days,
     freeze_days: raw.freeze_days === '' ? null : raw.freeze_days,
     tk_days: raw.tk_days === '' ? null : raw.tk_days,
+    check_days: raw.check_days === '' ? null : raw.check_days,
   };
   try {
     if (state.editProduct) await api(`/api/products/${state.editProduct.id}`, { method: 'PUT', body: JSON.stringify(payload) });
@@ -388,8 +458,13 @@ $('#list').addEventListener('click', async (e) => {
   if (act === 'edit-batch' && batch) { e.stopPropagation(); return openBatchDialog(product, batch); }
   if (act === 'del-batch' && batch) {
     e.stopPropagation();
-    if (!confirm(`Charge (Frisch-MHD ${fmtDate(batch.best_before)}, ${fmtQty(batch.quantity)} ${product.unit}) löschen?`)) return;
+    const txt = `Charge (Frisch-MHD ${fmtDate(batch.best_before)}, ${fmtQty(batch.quantity)} ${product.unit}) löschen?`;
+    if (!confirm(txt)) return;
     try { await api(`/api/batches/${batch.id}`, { method: 'DELETE' }); await load(); } catch (err) { alert(err.message); }
+  }
+  if (act === 'check-batch' && batch) {
+    e.stopPropagation();
+    return openCheckSheet(product, batch);
   }
 });
 

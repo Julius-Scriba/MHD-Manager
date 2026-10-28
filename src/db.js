@@ -60,6 +60,14 @@ function createV3(db) {
   add('tk_days', 'INTEGER');
   add('pace', "TEXT NOT NULL DEFAULT 'mittel'");
 
+  // v3.5: Bestandsprüfung — eigenes Prüf-Intervall je Produkt und Zeitpunkt der
+  // letzten Zählung je Charge. NULL heißt "noch nie geprüft".
+  add('check_days', 'INTEGER');
+  const batchCols = db.prepare('PRAGMA table_info(batches)').all().map((c) => c.name);
+  if (!batchCols.includes('checked_at')) {
+    db.exec('ALTER TABLE batches ADD COLUMN checked_at TEXT');
+  }
+
   // v3 → v3.1: Rollen. Der erste Benutzer (id 1) wird Admin, bestehende bleiben Nutzer.
   const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
   if (!userCols.includes('role')) {
