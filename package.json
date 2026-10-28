@@ -1,8 +1,8 @@
 {
   "name": "mhd-manager",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "MHD Manager - Mindesthaltbarkeitsdaten erfassen, überblicken, später warnen",
+  "description": "MHD Manager - Mindesthaltbarkeitsdaten im Hofladen: Produkte, Chargen, Einfrier-Fristen",
   "type": "module",
   "main": "src/server.js",
   "scripts": {

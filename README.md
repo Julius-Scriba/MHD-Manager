@@ -1,22 +1,50 @@
 # MHD Manager
 
-Produkte mit Mindesthaltbarkeitsdatum erfassen, im Blick behalten, rechtzeitig
-verbrauchen. Läuft als schlanker Node-Dienst hinter Nginx.
+Mindesthaltbarkeitsdaten für den Hofladen: **ein Produkt, viele Chargen**.
+Jede Charge hat ihr eigenes MHD, ihre eigene Menge und optional ein Einfrierdatum.
+Die App warnt rechtzeitig vor Ablauf **und** vor der Frist, bis zu der noch
+eingefroren werden muss.
 
-**Live:** https://mhd.unknownengine.com (Gameserver `vmd202972`)
+**Live:** https://mhd.unknownengine.com
 
-## Funktionsumfang (v0.1)
+## Modell
 
-- Produkt anlegen mit Name, MHD, Menge/Einheit, Kategorie, Ort, „angebrochen am“, Notiz
-- Übersicht mit Tagesdifferenz und Status: **abgelaufen**, **dringend** (≤2 Tage),
-  **bald fällig** (innerhalb der Vorwarnzeit), **in Ordnung**
-- Suche über Name/Kategorie/Ort/Notiz, Filter nach Status, Sortierung nach MHD/Name/Anlage
-- Vorwarnzeit in den Einstellungen konfigurierbar (Standard 7 Tage)
-- JSON-Export aller Daten
-- Responsive UI (Handy zuerst, Desktop skaliert), Light/Dark über Systemeinstellung
+```
+Rinderhackfleisch            ← Produkt (Stammdaten)
+  Warnzeit 2 Tage
+  Einfrieren: 1 Tag vor MHD
+├─ Charge  MHD 30.10. · 4,5 kg · frisch          → "bis 29.10. einfrieren"
+├─ Charge  MHD 01.11. · 2,0 kg · eingefroren 27.10.
+└─ Charge  MHD 03.11. · 3,0 kg · frisch
+```
 
-Später geplant: Push-/Mail-Warnungen, Barcode-Scan, Verbrauchshistorie, mehrere
-Lagerorte, PWA-Installation.
+- **Produkt** = Name, Kategorie, Einheit, Ort, Warnzeit, Einfrier-Vorlauf
+- **Charge** = Menge + MHD + optional Eingefroren-Datum + Notiz
+- Verkauft/verbraucht? Charge löschen. Zählt man nach, Menge korrigieren.
+
+## Status pro Charge
+
+| Feld | Werte | Bedeutung |
+|---|---|---|
+| `status` | `expired` / `urgent` / `soon` / `ok` | MHD vorbei / heute / innerhalb Warnzeit / später |
+| `freeze_status` | `window` / `due` / `missed` / `frozen` / `none` | Frist läuft / jetzt einfrieren / Frist verpasst / eingefroren / kein Einfrieren |
+
+`freeze_deadline` = MHD − Einfrier-Vorlauf. Ist die Frist erreicht und die Charge
+nicht eingefroren, erscheint sie als **kritisch** (Chip „bis … einfrieren").
+
+Einfrieren verlängert das MHD **nicht** automatisch — die App warnt zum richtigen
+Zeitpunkt, die Entscheidung bleibt betrieblich.
+
+## Funktionsumfang (v0.2)
+
+- Produkte anlegen/bearbeiten, Warnzeit und Einfrier-Vorlauf pro Produkt
+- Beliebig viele Chargen pro Produkt, Einfrieren mit einem Klick
+- Übersicht mit Zählern (abgelaufen / heute / einfrieren / bald fällig)
+- Suche, Filter (auch „Einfrieren fällig"), Sortierung nach MHD/Name/Menge
+- Änderungsprotokoll in der Tabelle `events` (noch ohne eigene Ansicht)
+- JSON-Export, responsive UI, Light/Dark automatisch
+
+Geplant: Push-/Mail-Warnungen, Barcode-Scan, Verkaufsstatistik.
 
 ## Stack
 
@@ -24,7 +52,7 @@ Lagerorte, PWA-Installation.
 |---|---|
 | Runtime | Node.js ≥ 22.5 (nutzt `node:sqlite`, **keine nativen Builds**) |
 | Backend | Express 4, REST-API |
-| Datenbank | SQLite als Datei (`DATA_DIR/mhd.db`) |
+| Datenbank | SQLite-Datei (`DATA_DIR/mhd.db`), Schema v2 mit Auto-Migration |
 | Frontend | Vanilla JS, kein Build-Step, statisch aus `public/` |
 | Deployment | systemd-Unit + Nginx-Reverse-Proxy |
 
@@ -32,39 +60,42 @@ Lagerorte, PWA-Installation.
 
 ```bash
 npm install
-npm start            # http://127.0.0.1:8091
-npm test             # Validierungs-/Statustests
+npm start     # http://127.0.0.1:8091
+npm test      # 8 Tests: Datumslogik, Einfrier-Fristen, Validierung
 ```
 
-Konfiguration über Umgebungsvariablen: `PORT`, `HOST`, `DATA_DIR`.
+Umgebungsvariablen: `PORT`, `HOST`, `DATA_DIR`.
 
 ## API
 
 | Methode | Pfad | Zweck |
 |---|---|---|
-| GET | `/api/health` | Status + Produktanzahl |
-| GET | `/api/products` | Liste inkl. `days_left` + `status` |
+| GET | `/api/health` | Status + Anzahl Produkte/Chargen |
+| GET | `/api/overview` | Produkte mit Chargen, Zählern, verdichtetem Status |
+| GET | `/api/products` | Produktliste |
 | POST | `/api/products` | Produkt anlegen |
 | PUT | `/api/products/:id` | Produkt ändern |
-| DELETE | `/api/products/:id` | Produkt löschen |
-| GET | `/api/settings` | Vorwarnzeit lesen |
-| PUT | `/api/settings` | Vorwarnzeit setzen (`warn_days`) |
-| GET | `/api/export` | JSON-Backup |
+| DELETE | `/api/products/:id` | Produkt **mit allen Chargen** löschen |
+| POST | `/api/products/:id/batches` | Charge anlegen |
+| PUT | `/api/batches/:id` | Charge ändern |
+| PUT | `/api/batches/:id/quantity` | Menge korrigieren |
+| POST | `/api/batches/:id/freeze` | Charge einfrieren (`frozen_on` optional) |
+| DELETE | `/api/batches/:id` | Charge löschen |
+| GET | `/api/settings` | Standard-Warnzeit lesen |
+| PUT | `/api/settings` | Standard-Warnzeit setzen |
+| GET | `/api/export` | JSON-Backup (Produkte + Chargen) |
 
-Statusfelder berechnet der Server (UTC-Tagesdifferenz), das Frontend rechnet nichts nach.
+Datumsrechnung ausschließlich in UTC — keine Zeitzonen-Verschiebung um Mitternacht.
 
-## Deployment (Gameserver)
+## Deployment
+
+Siehe [deploy/README.md](deploy/README.md).
 
 ```bash
-# auf dem Server
-rsync -a --delete --exclude node_modules --exclude data ./ root@vmd202972:/opt/mhd-manager/
+cd projects/mhd-manager
+tar czf /tmp/mhd.tgz --exclude=node_modules --exclude=data .
+cat /tmp/mhd.tgz | ssh gameserver 'tar xzf - -C /opt/mhd-manager'
 ssh gameserver 'cd /opt/mhd-manager && npm ci --omit=dev && systemctl restart mhd-manager'
 ```
 
-Dateien: `deploy/mhd-manager.service` (systemd), `deploy/nginx-mhd.conf` (Site-Config).
-Datenbank liegt unter `/var/lib/mhd-manager/mhd.db` — nicht im Repo, nicht im Deploy-Ordner.
-
-Backup: `GET /api/export` oder Dateikopie von `/var/lib/mhd-manager/mhd.db`
-(im WAL-Modus zusätzlich `mhd.db-wal` sichern oder vorher `sqlite3 mhd.db "PRAGMA wal_checkpoint(TRUNCATE)"`).
-
-Deploy-Details: [deploy/README.md](deploy/README.md)
+Datenbank liegt unter `/var/lib/mhd-manager/mhd.db` — nicht im Repo.
