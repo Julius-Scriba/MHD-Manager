@@ -46,6 +46,23 @@ Zeitpunkt, die Entscheidung bleibt betrieblich.
 
 Geplant: Push-/Mail-Warnungen, Barcode-Scan, Verkaufsstatistik.
 
+## Benutzer & Rollen
+
+Mehrere Personen können die App nutzen, mit zwei Rollen:
+
+| Rolle | Rechte |
+|---|---|
+| **Administrator** | alles: Produkte, Chargen, Benutzer anlegen/löschen, Rollen, Passwörter zurücksetzen, globale Einstellungen |
+| **Mitarbeiter** | Produkte und Chargen pflegen, Übersicht, Export |
+
+Der **erste** Benutzer wird automatisch Administrator. Weitere Benutzer legt ein Admin
+im Einstellungsdialog an (Abschnitt „Benutzer").
+
+Absicherungen: das eigene Konto ist nicht löschbar, die eigene Admin-Rolle nicht
+entfernbar, und der letzte Administrator kann weder gelöscht noch degradiert werden —
+damit sperrt sich niemand aus dem System aus. Ein Passwort-Reset durch den Admin
+beendet die laufenden Sitzungen des betroffenen Benutzers sofort.
+
 ## Stack
 
 | Baustein | Entscheidung |

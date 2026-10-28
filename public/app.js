@@ -425,8 +425,93 @@ $('#btn-settings').addEventListener('click', () => {
   settingsForm.warn_days.value = state.warnDays;
   passwordForm.reset();
   clearFlash($('#settings-error'), $('#settings-ok'), $('#password-error'), $('#password-ok'));
-  $('#user-line').textContent = state.user ? `Angemeldet als ${state.user.username}` : '';
+  const isAdmin = state.user?.role === 'admin';
+  $('#user-line').textContent = state.user
+    ? `Angemeldet als ${state.user.username}${isAdmin ? ' (Administrator)' : ''}`
+    : '';
+  // Benutzerverwaltung nur für Admins — serverseitig zusätzlich geprüft
+  $('#users-section').hidden = !isAdmin;
+  if (isAdmin) loadUsers();
   settingsDialog.showModal();
+});
+
+/* ---------- Benutzerverwaltung ---------- */
+async function loadUsers() {
+  try {
+    const data = await api('/api/users');
+    $('#user-list').innerHTML = data.users.map((u) => {
+      const self = u.id === state.user?.id;
+      const roleLabel = u.role === 'admin' ? 'Administrator' : 'Mitarbeiter';
+      const last = u.last_login ? `zuletzt ${u.last_login.slice(0, 16)}` : 'noch nie angemeldet';
+      return `<li class="user-item" data-user="${u.id}">
+        <div>
+          <div class="u-name">${esc(u.username)}
+            <span class="role-badge ${u.role === 'admin' ? 'admin' : ''}">${roleLabel}</span>
+            ${self ? '<span class="role-badge">du</span>' : ''}
+          </div>
+          <div class="u-meta">${esc(last)}</div>
+        </div>
+        <div class="u-actions">
+          ${self ? '' : `<button class="btn ghost small" type="button" data-uact="role" data-id="${u.id}" data-role="${u.role === 'admin' ? 'user' : 'admin'}">
+            ${u.role === 'admin' ? 'Zu Mitarbeiter' : 'Zu Admin'}</button>`}
+          <button class="btn ghost small" type="button" data-uact="reset" data-id="${u.id}" data-name="${esc(u.username)}">Passwort</button>
+          ${self ? '' : `<button class="btn ghost small danger" type="button" data-uact="del" data-id="${u.id}" data-name="${esc(u.username)}">Löschen</button>`}
+        </div>
+      </li>`;
+    }).join('');
+  } catch (err) {
+    $('#user-list').innerHTML = `<li class="u-meta">${esc(err.message)}</li>`;
+  }
+}
+
+$('#user-list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-uact]');
+  if (!btn) return;
+  const id = Number(btn.dataset.user ?? btn.dataset.id);
+  const act = btn.dataset.uact;
+  btn.disabled = true;
+  try {
+    if (act === 'del') {
+      if (!confirm(`Benutzer „${btn.dataset.name}" löschen? Die Sitzung wird sofort beendet.`)) {
+        btn.disabled = false;
+        return;
+      }
+      await api(`/api/users/${id}`, { method: 'DELETE' });
+    } else if (act === 'reset') {
+      const pw = prompt(`Neues Passwort für „${btn.dataset.name}" (min. 10 Zeichen):`);
+      if (!pw) { btn.disabled = false; return; }
+      await api(`/api/users/${id}/password`, { method: 'POST', body: JSON.stringify({ password: pw }) });
+      alert('Passwort gesetzt.');
+    } else if (act === 'role') {
+      await api(`/api/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role: btn.dataset.role }) });
+    }
+    await loadUsers();
+  } catch (err) {
+    alert(err.message);
+    btn.disabled = false;
+  }
+});
+
+$('#user-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = $('#user-form');
+  const box = $('#user-error');
+  box.hidden = true;
+  try {
+    await api('/api/users', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: form.username.value.trim(),
+        password: form.password.value,
+        role: form.role.value,
+      }),
+    });
+    form.reset();
+    await loadUsers();
+  } catch (err) {
+    box.textContent = err.message;
+    box.hidden = false;
+  }
 });
 
 settingsForm.addEventListener('submit', async (e) => {

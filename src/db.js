@@ -35,6 +35,7 @@ function createV3(db) {
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
       username      TEXT    NOT NULL UNIQUE COLLATE NOCASE,
       password_hash TEXT    NOT NULL,
+      role          TEXT    NOT NULL DEFAULT 'user',
       created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
       last_login    TEXT
     );
@@ -58,6 +59,14 @@ function createV3(db) {
   };
   add('tk_days', 'INTEGER');
   add('pace', "TEXT NOT NULL DEFAULT 'mittel'");
+
+  // v3 → v3.1: Rollen. Der erste Benutzer (id 1) wird Admin, bestehende bleiben Nutzer.
+  const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+  if (!userCols.includes('role')) {
+    db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
+    db.exec("UPDATE users SET role = 'admin' WHERE id = (SELECT MIN(id) FROM users)");
+    console.log('[mhd] Rollen-Spalte ergänzt, erster Benutzer ist Admin.');
+  }
 
   // Produkte tragen den Kategorienamen redundant? Nein — category bleibt Text,
   // die Tabelle ist die Auswahlliste. So bleiben Altdaten gültig.

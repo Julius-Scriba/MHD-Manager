@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.4.0 — 2026-10-28
+
+Mehrere Benutzer mit Rollen.
+
+**Neu**
+- Rolle `admin` / `user`; der erste Benutzer wird automatisch Administrator
+- Benutzerverwaltung im Einstellungsdialog (nur für Admins sichtbar):
+  anlegen, löschen, Rolle wechseln, Passwort zurücksetzen
+- `GET/POST /api/users`, `DELETE /api/users/:id`, `PUT /api/users/:id/role`,
+  `POST /api/users/:id/password`
+- Passwort-Reset durch einen Admin beendet die Sitzungen des betroffenen Benutzers sofort
+
+**Absicherung**
+- Benutzerverwaltung und globale Einstellungen serverseitig auf Admins begrenzt (`403` sonst)
+- Eigenes Konto kann nicht gelöscht werden; eigene Admin-Rolle nicht entfernbar
+- Letzter Administrator kann weder gelöscht noch degradiert werden
+- Benutzername: 3–32 Zeichen, nur Buchstaben, Ziffern, `.`, `_`, `-`; doppelte Namen (auch
+  andere Groß-/Kleinschreibung) abgelehnt
+- Startpasswort mindestens 10 Zeichen, gehasht mit scrypt wie alle Passwörter
+
 ## v0.3.0 — 2026-10-28
 
 Passwortschutz, Frisch-/TK-MHD, Verkaufstempo und pflegbare Kategorien.

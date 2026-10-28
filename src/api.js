@@ -27,6 +27,13 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     userById: db.prepare('SELECT * FROM users WHERE id = ?'),
     setLastLogin: db.prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?"),
     updatePassword: db.prepare('UPDATE users SET password_hash = ? WHERE id = ?'),
+    users: db.prepare(`SELECT id, username, role, created_at, last_login FROM users
+      ORDER BY role = 'admin' DESC, username COLLATE NOCASE`),
+    insertUser: db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)'),
+    deleteUser: db.prepare('DELETE FROM users WHERE id = ?'),
+    countAdmins: db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'"),
+    setRole: db.prepare('UPDATE users SET role = ? WHERE id = ?'),
+    countSessionsOfUser: db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE user_id = ?'),
     sessionInsert: db.prepare('INSERT INTO sessions (token, user_id, expires_at, user_agent) VALUES (?, ?, ?, ?)'),
     sessionGet: db.prepare('SELECT * FROM sessions WHERE token = ?'),
     sessionDelete: db.prepare('DELETE FROM sessions WHERE token = ?'),
@@ -179,6 +186,14 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     next();
   };
 
+  /** Nur Admins: Benutzerverwaltung und globale Einstellungen. */
+  const requireAdmin = (req, res, next) => {
+    if ((req.auth?.user?.role || 'user') !== 'admin') {
+      return res.status(403).json({ error: 'Nur für Administratoren.' });
+    }
+    next();
+  };
+
   /* ---------- Login / Logout ---------- */
   app.post('/api/login', async (req, res) => {
     const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unbekannt';
@@ -223,7 +238,10 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     q.logEvent.run(null, null, 'login_ok', `${user.username} von ${ip}`);
 
     res.setHeader('Set-Cookie', cookieFor(token, Math.floor(SESSION_TTL_MS / 1000)));
-    res.json({ user: { id: user.id, username: user.username }, expires_in: Math.floor(SESSION_TTL_MS / 1000) });
+    res.json({
+      user: { id: user.id, username: user.username, role: user.role || 'user' },
+      expires_in: Math.floor(SESSION_TTL_MS / 1000),
+    });
   });
 
   app.post('/api/logout', (req, res) => {
@@ -236,7 +254,10 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
   app.get('/api/me', (req, res) => {
     const ctx = currentUser(req);
     if (!ctx) return res.status(401).json({ error: 'Nicht angemeldet.' });
-    res.json({ user: { id: ctx.user.id, username: ctx.user.username }, last_login: ctx.user.last_login });
+    res.json({
+      user: { id: ctx.user.id, username: ctx.user.username, role: ctx.user.role || 'user' },
+      last_login: ctx.user.last_login,
+    });
   });
 
   /* ---------- Health (öffentlich, ohne Daten) ---------- */
@@ -425,6 +446,90 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     res.json({ warn_days: defaultWarn(), paces: PACES });
   });
 
+  /* ---------- Benutzerverwaltung (nur Admins) ---------- */
+  const safeUser = (u) => ({
+    id: u.id,
+    username: u.username,
+    role: u.role || 'user',
+    created_at: u.created_at,
+    last_login: u.last_login,
+  });
+
+  api.get('/users', requireAdmin, (_req, res) => {
+    res.json({ users: q.users.all().map(safeUser) });
+  });
+
+  api.post('/users', requireAdmin, async (req, res) => {
+    const username = String(req.body?.username || '').trim();
+    const password = String(req.body?.password || '');
+    const role = req.body?.role === 'admin' ? 'admin' : 'user';
+
+    if (username.length < 3 || username.length > 32) {
+      return res.status(400).json({ errors: ['Benutzername braucht 3 bis 32 Zeichen.'] });
+    }
+    if (!/^[A-Za-z0-9._-]+$/.test(username)) {
+      return res.status(400).json({ errors: ['Benutzername darf nur Buchstaben, Ziffern, Punkt, Unterstrich und Bindestrich enthalten.'] });
+    }
+    if (password.length < 10) {
+      return res.status(400).json({ errors: ['Das Passwort braucht mindestens 10 Zeichen.'] });
+    }
+    if (q.user.get(username)) {
+      return res.status(409).json({ errors: ['Diesen Benutzernamen gibt es schon.'] });
+    }
+
+    const hash = await hashPassword(password);
+    const info = q.insertUser.run(username, hash, role);
+    const id = Number(info.lastInsertRowid);
+    q.logEvent.run(null, null, 'user_created', `${username} (${role})`);
+    res.status(201).json(safeUser(q.userById.get(id)));
+  });
+
+  api.post('/users/:id/password', requireAdmin, async (req, res) => {
+    const id = Number(req.params.id);
+    const target = q.userById.get(id);
+    if (!target) return res.status(404).json({ error: 'Benutzer nicht gefunden.' });
+    const password = String(req.body?.password || '');
+    if (password.length < 10) {
+      return res.status(400).json({ errors: ['Das Passwort braucht mindestens 10 Zeichen.'] });
+    }
+    q.updatePassword.run(await hashPassword(password), id);
+    // Fremde Sitzungen sofort beenden
+    if (id !== req.auth.user.id) q.sessionDeleteUser.run(id);
+    q.logEvent.run(null, null, 'user_password_reset', target.username);
+    res.json({ ok: true, sessions_ended: id !== req.auth.user.id });
+  });
+
+  api.delete('/users/:id', requireAdmin, (req, res) => {
+    const id = Number(req.params.id);
+    const target = q.userById.get(id);
+    if (!target) return res.status(404).json({ error: 'Benutzer nicht gefunden.' });
+    if (id === req.auth.user.id) {
+      return res.status(409).json({ errors: ['Das eigene Konto kann nicht gelöscht werden.'] });
+    }
+    if ((target.role || 'user') === 'admin' && q.countAdmins.get().n <= 1) {
+      return res.status(409).json({ errors: ['Der letzte Administrator kann nicht gelöscht werden.'] });
+    }
+    q.deleteUser.run(id); // Sessions hängen per ON DELETE CASCADE dran
+    q.logEvent.run(null, null, 'user_deleted', target.username);
+    res.status(204).end();
+  });
+
+  api.put('/users/:id/role', requireAdmin, (req, res) => {
+    const id = Number(req.params.id);
+    const target = q.userById.get(id);
+    if (!target) return res.status(404).json({ error: 'Benutzer nicht gefunden.' });
+    const role = req.body?.role === 'admin' ? 'admin' : 'user';
+    if (id === req.auth.user.id && role !== 'admin') {
+      return res.status(409).json({ errors: ['Die eigene Admin-Rolle kann nicht entfernt werden.'] });
+    }
+    if ((target.role || 'user') === 'admin' && role !== 'admin' && q.countAdmins.get().n <= 1) {
+      return res.status(409).json({ errors: ['Der letzte Administrator behält seine Rolle.'] });
+    }
+    q.setRole.run(role, id);
+    q.logEvent.run(null, null, 'user_role_changed', `${target.username} → ${role}`);
+    res.json(safeUser(q.userById.get(id)));
+  });
+
   /* Passwort ändern: verlangt das aktuelle Passwort, beendet alle anderen Sitzungen. */
   api.post('/password', async (req, res) => {
     const current = String(req.body?.current || '');
@@ -463,7 +568,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     res.json({ ok: true, other_sessions_ended: true });
   });
 
-  api.put('/settings', (req, res) => {
+  api.put('/settings', requireAdmin, (req, res) => {
     const n = Number(req.body?.warn_days);
     if (!Number.isInteger(n) || n < 0 || n > 365) {
       return res.status(400).json({ errors: ['warn_days muss eine ganze Zahl zwischen 0 und 365 sein.'] });

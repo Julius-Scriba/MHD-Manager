@@ -156,6 +156,34 @@
       </form>
     </section>
 
+    <section class="settings-section" id="users-section" hidden>
+      <h3>Benutzer</h3>
+      <ul class="user-list" id="user-list"></ul>
+      <form id="user-form" class="user-form" novalidate>
+        <div class="grid">
+          <label class="field">
+            <span>Benutzername</span>
+            <input name="username" type="text" maxlength="32" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="z. B. lisa">
+          </label>
+          <label class="field">
+            <span>Rolle</span>
+            <select name="role">
+              <option value="user">Mitarbeiter</option>
+              <option value="admin">Administrator</option>
+            </select>
+          </label>
+          <label class="field full">
+            <span>Startpasswort (min. 10 Zeichen)</span>
+            <input name="password" type="password" minlength="10" autocomplete="new-password">
+          </label>
+        </div>
+        <p class="form-error" id="user-error" role="alert" hidden></p>
+        <div class="section-actions">
+          <button class="btn primary small" type="submit">Benutzer anlegen</button>
+        </div>
+      </form>
+    </section>
+
     <section class="settings-section">
       <h3>Passwort ändern</h3>
       <form id="password-form" novalidate>
