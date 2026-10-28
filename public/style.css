@@ -208,3 +208,6 @@ dialog.sheet h2 { margin: 0 0 14px; font-size: 17px; }
 .login-card .field + .field { margin-top: 12px; }
 .login-btn { width: 100%; justify-content: center; margin-top: 18px; height: 44px; }
 .hint.full-hint { grid-column: 1 / -1; margin: -6px 0 0; }
+
+/* Lösch-Aktionen: erst beim Hover der Karte rot, damit nichts versehentlich passiert */
+.icon-btn.danger:hover { color: var(--expired); border-color: color-mix(in srgb, var(--expired) 50%, transparent); }

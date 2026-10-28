@@ -147,6 +147,9 @@ function cardHtml(p) {
         <span class="icon-btn" role="button" tabindex="0" data-act="edit-product" title="Produkt bearbeiten" aria-label="Produkt bearbeiten">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
         </span>
+        <span class="icon-btn danger" role="button" tabindex="0" data-act="del-product" title="Produkt löschen" aria-label="Produkt löschen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
       </div>
     </button>
     <div class="batches">
@@ -353,6 +356,20 @@ $('#list').addEventListener('click', async (e) => {
   }
   if (act === 'edit-product') { e.stopPropagation(); return openProductDialog(product); }
   if (act === 'add-batch') { e.stopPropagation(); return openBatchDialog(product, null); }
+  if (act === 'del-product') {
+    e.stopPropagation();
+    const n = product.batches.length;
+    const warn = n
+      ? `\n\nAchtung: ${n} ${n === 1 ? 'Charge wird' : 'Chargen werden'} ebenfalls gelöscht.`
+      : '';
+    if (!confirm(`„${product.name}" und alle Chargen endgültig löschen?${warn}`)) return;
+    try {
+      await api(`/api/products/${product.id}`, { method: 'DELETE' });
+      state.open.delete(product.id);
+      await load();
+    } catch (err) { alert(err.message); }
+    return;
+  }
 
   const batchEl = e.target.closest('.batch');
   const batch = batchEl ? product.batches.find((b) => b.id === Number(batchEl.dataset.batch)) : null;
