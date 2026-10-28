@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.6.0 — 2026-10-28
+
+Einstellungen sind jetzt eine eigene Seite statt eines Popups.
+
+**Neu**
+- `public/settings.html` + `public/settings.js` unter `/settings`, mit Tabs:
+  Allgemein (Warnzeit, Export), Sicherheit (Passwort), Benutzer (nur Admin),
+  Protokoll (nur Admin)
+- Der aktive Tab steht in der URL (`/settings#users`) und überlebt ein Neuladen
+- Zahnrad in der Kopfzeile ist ein Link; Zurück-Pfeil führt zur Übersicht
+
+**Aufgeräumt**
+- beide Dialoge (`settings-dialog`, `log-dialog`) aus `index.html` und `app.js` entfernt
+  — es gibt jetzt genau eine Stelle für jede Einstellung
+
 ## v0.5.1 — 2026-10-28
 
 Anwesenheit: Admins sehen, wer gerade online ist.

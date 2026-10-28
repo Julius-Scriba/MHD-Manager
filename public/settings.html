@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12161c">
+<title>Einstellungen · MHD Manager</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2312161c'/%3E%3Cpath d='M8 21l4-10 3 6 2-3 5 7z' fill='%235ec486'/%3E%3C/svg%3E">
+</head>
+<body class="page-settings">
+<header class="topbar">
+  <div class="brand">
+    <a class="back" href="/" title="Zurück zur Übersicht" aria-label="Zurück zur Übersicht">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+    <div>
+      <h1>Einstellungen</h1>
+      <p class="sub" id="user-line">Lade …</p>
+    </div>
+  </div>
+  <nav class="actions">
+    <button class="btn ghost" id="btn-logout" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 8V5H5v14h10v-3M10 12h11M18 9l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Abmelden</span>
+    </button>
+  </nav>
+</header>
+
+<main class="settings-main">
+  <nav class="tabs" id="tabs" aria-label="Bereiche">
+    <button class="tab active" type="button" data-tab="general">Allgemein</button>
+    <button class="tab" type="button" data-tab="security">Sicherheit</button>
+    <button class="tab" type="button" data-tab="users" id="tab-users" hidden>Benutzer</button>
+    <button class="tab" type="button" data-tab="log" id="tab-log" hidden>Protokoll</button>
+  </nav>
+
+  <!-- Allgemein -->
+  <section class="panel" data-panel="general">
+    <h2>Warnungen</h2>
+    <form id="settings-form" novalidate>
+      <label class="field full">
+        <span>Standard-Warnzeit in Tagen</span>
+        <input name="warn_days" type="number" min="0" max="365" step="1" required>
+      </label>
+      <p class="hint">Gilt nur, wenn weder Verkaufstempo noch manuelle Warnzeit greifen.</p>
+      <p class="form-error" id="settings-error" role="alert" hidden></p>
+      <p class="form-ok" id="settings-ok" role="status" hidden></p>
+      <div class="section-actions">
+        <button class="btn primary" type="submit">Speichern</button>
+      </div>
+    </form>
+
+    <h2>Daten</h2>
+    <p class="hint">Vollständiger Export aller Produkte, Chargen und Kategorien als JSON.</p>
+    <div class="section-actions">
+      <button class="btn ghost" type="button" id="btn-export">JSON-Export herunterladen</button>
+    </div>
+  </section>
+
+  <!-- Sicherheit -->
+  <section class="panel" data-panel="security" hidden>
+    <h2>Passwort ändern</h2>
+    <form id="password-form" novalidate>
+      <label class="field full">
+        <span>Aktuelles Passwort</span>
+        <input name="current" type="password" autocomplete="current-password" required>
+      </label>
+      <label class="field full">
+        <span>Neues Passwort</span>
+        <input name="next" type="password" autocomplete="new-password" minlength="10" required>
+      </label>
+      <label class="field full">
+        <span>Neues Passwort wiederholen</span>
+        <input name="confirm" type="password" autocomplete="new-password" minlength="10" required>
+      </label>
+      <p class="hint">Mindestens 10 Zeichen. Andere Sitzungen werden abgemeldet.</p>
+      <p class="form-error" id="password-error" role="alert" hidden></p>
+      <p class="form-ok" id="password-ok" role="status" hidden></p>
+      <div class="section-actions">
+        <button class="btn primary" type="submit">Passwort ändern</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Benutzer (nur Admins) -->
+  <section class="panel" data-panel="users" hidden>
+    <h2>Benutzer</h2>
+    <p class="hint">Wer gerade online ist, siehst du am grünen Punkt. „Online" heißt: in den letzten 5 Minuten aktiv.</p>
+    <ul class="user-list" id="user-list"></ul>
+
+    <h2>Neuer Benutzer</h2>
+    <form id="user-form" class="user-form" novalidate>
+      <div class="grid">
+        <label class="field">
+          <span>Benutzername</span>
+          <input name="username" type="text" maxlength="32" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="z. B. lisa">
+        </label>
+        <label class="field">
+          <span>Rolle</span>
+          <select name="role">
+            <option value="user">Mitarbeiter</option>
+            <option value="admin">Administrator</option>
+          </select>
+        </label>
+        <label class="field full">
+          <span>Startpasswort (min. 10 Zeichen)</span>
+          <input name="password" type="password" minlength="10" autocomplete="new-password">
+        </label>
+      </div>
+      <p class="form-error" id="user-error" role="alert" hidden></p>
+      <div class="section-actions">
+        <button class="btn primary" type="submit">Benutzer anlegen</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Protokoll (nur Admins) -->
+  <section class="panel" data-panel="log" hidden>
+    <h2>Protokoll</h2>
+    <p class="hint">Jede Änderung, angemeldet oder abgelehnt — neueste zuerst.</p>
+    <div class="log-filters">
+      <label class="field">
+        <span>Art</span>
+        <select id="log-type"><option value="">alle</option></select>
+      </label>
+      <label class="field">
+        <span>Person</span>
+        <select id="log-user"><option value="">alle</option></select>
+      </label>
+      <label class="field">
+        <span>Ab Datum</span>
+        <input id="log-since" type="date">
+      </label>
+    </div>
+    <p class="hint" id="log-summary"></p>
+    <div class="log-scroll">
+      <table class="log-table">
+        <thead><tr><th>Zeitpunkt</th><th>Person</th><th>Vorgang</th><th>Objekt</th><th>Details</th></tr></thead>
+        <tbody id="log-body"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script src="/settings.js"></script>
+</body>
+</html>

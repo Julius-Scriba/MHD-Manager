@@ -18,10 +18,10 @@
     </div>
   </div>
   <nav class="actions">
-    <button class="btn ghost" id="btn-settings" type="button" title="Einstellungen">
+    <a class="btn ghost" id="btn-settings" href="/settings" title="Einstellungen">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M4.5 12h2.2M17.3 12h2.2M6.7 6.7l1.6 1.6M15.7 15.7l1.6 1.6M17.3 6.7l-1.6 1.6M8.3 15.7l-1.6 1.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       <span>Einstellungen</span>
-    </button>
+    </a>
     <button class="btn primary" id="btn-add-product" type="button">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       <span>Produkt</span>
@@ -133,128 +133,6 @@
       <button class="btn primary" type="submit">Speichern</button>
     </menu>
   </form>
-</dialog>
-
-<dialog id="settings-dialog" class="sheet">
-  <div class="settings-body">
-    <h2>Einstellungen</h2>
-    <p class="sheet-sub" id="user-line"></p>
-
-    <section class="settings-section">
-      <h3>Warnungen</h3>
-      <form id="settings-form" novalidate>
-        <label class="field full">
-          <span>Standard-Warnzeit in Tagen</span>
-          <input name="warn_days" type="number" min="0" max="365" step="1" required>
-        </label>
-        <p class="hint">Gilt nur, wenn weder Verkaufstempo noch manuelle Warnzeit greifen.</p>
-        <p class="form-error" id="settings-error" role="alert" hidden></p>
-        <p class="form-ok" id="settings-ok" role="status" hidden></p>
-        <div class="section-actions">
-          <button class="btn primary small" type="submit">Speichern</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="settings-section" id="users-section" hidden>
-      <h3>Benutzer</h3>
-      <ul class="user-list" id="user-list"></ul>
-      <form id="user-form" class="user-form" novalidate>
-        <div class="grid">
-          <label class="field">
-            <span>Benutzername</span>
-            <input name="username" type="text" maxlength="32" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="z. B. lisa">
-          </label>
-          <label class="field">
-            <span>Rolle</span>
-            <select name="role">
-              <option value="user">Mitarbeiter</option>
-              <option value="admin">Administrator</option>
-            </select>
-          </label>
-          <label class="field full">
-            <span>Startpasswort (min. 10 Zeichen)</span>
-            <input name="password" type="password" minlength="10" autocomplete="new-password">
-          </label>
-        </div>
-        <p class="form-error" id="user-error" role="alert" hidden></p>
-        <div class="section-actions">
-          <button class="btn primary small" type="submit">Benutzer anlegen</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="settings-section">
-      <h3>Passwort ändern</h3>
-      <form id="password-form" novalidate>
-        <label class="field full">
-          <span>Aktuelles Passwort</span>
-          <input name="current" type="password" autocomplete="current-password" required>
-        </label>
-        <label class="field full">
-          <span>Neues Passwort</span>
-          <input name="next" type="password" autocomplete="new-password" minlength="10" required>
-        </label>
-        <label class="field full">
-          <span>Neues Passwort wiederholen</span>
-          <input name="confirm" type="password" autocomplete="new-password" minlength="10" required>
-        </label>
-        <p class="hint">Mindestens 10 Zeichen. Andere Sitzungen werden abgemeldet.</p>
-        <p class="form-error" id="password-error" role="alert" hidden></p>
-        <p class="form-ok" id="password-ok" role="status" hidden></p>
-        <div class="section-actions">
-          <button class="btn primary small" type="submit">Passwort ändern</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="settings-section">
-      <h3>Daten</h3>
-      <div class="section-actions spread">
-        <button class="btn ghost small" type="button" id="btn-export">JSON-Export</button>
-        <button class="btn ghost small" type="button" id="btn-log">Protokoll</button>
-        <button class="btn ghost small" type="button" id="btn-logout">Abmelden</button>
-      </div>
-    </section>
-
-    <div class="settings-footer">
-      <button class="btn ghost" type="button" data-close>Schließen</button>
-    </div>
-  </div>
-</dialog>
-
-<dialog id="log-dialog" class="sheet wide">
-  <div class="settings-body">
-    <h2>Protokoll</h2>
-    <p class="sheet-sub">Jede Änderung, angemeldet oder abgelehnt — neueste zuerst.</p>
-
-    <div class="log-filters">
-      <label class="field">
-        <span>Art</span>
-        <select id="log-type"><option value="">alle</option></select>
-      </label>
-      <label class="field">
-        <span>Person</span>
-        <select id="log-user"><option value="">alle</option></select>
-      </label>
-      <label class="field">
-        <span>Ab Datum</span>
-        <input id="log-since" type="date">
-      </label>
-    </div>
-
-    <p class="hint" id="log-summary"></p>
-    <div class="log-scroll">
-      <table class="log-table">
-        <thead><tr><th>Zeitpunkt</th><th>Person</th><th>Vorgang</th><th>Objekt</th><th>Details</th></tr></thead>
-        <tbody id="log-body"></tbody>
-      </table>
-    </div>
-
-    <div class="settings-footer">
-      <button class="btn ghost" type="button" data-close>Schließen</button>
-    </div>
-  </div>
 </dialog>
 
 <datalist id="locations"></datalist>
