@@ -81,6 +81,13 @@ function createV3(db) {
     if (!evCols.includes(col)) db.exec(`ALTER TABLE events ADD COLUMN ${col} ${type}`);
   }
 
+  // v3 → v3.3: Anwesenheit. last_seen wird bei jeder Anfrage aktualisiert (max. 1×/Minute),
+  // online bis 5 Minuten ohne Aktivität.
+  if (!userCols.includes('last_seen')) {
+    db.exec('ALTER TABLE users ADD COLUMN last_seen TEXT');
+    db.exec("UPDATE users SET last_seen = last_login WHERE last_login IS NOT NULL");
+  }
+
   // Produkte tragen den Kategorienamen redundant? Nein — category bleibt Text,
   // die Tabelle ist die Auswahlliste. So bleiben Altdaten gültig.
 }

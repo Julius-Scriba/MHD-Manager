@@ -436,20 +436,45 @@ $('#btn-settings').addEventListener('click', () => {
 });
 
 /* ---------- Benutzerverwaltung ---------- */
+/** Zeitstempel der DB sind UTC → lokale, lesbare Form. */
+const fmtWhen = (s) => {
+  if (!s) return null;
+  const d = new Date(s.replace(' ', 'T') + 'Z');
+  if (Number.isNaN(d.getTime())) return s;
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}, ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
+/** Anwesenheit in Worten: „jetzt", „vor 12 Min.", „am 28.10.2026, 09:14". */
+function presenceText(u) {
+  const seen = u.last_seen_min;
+  if (u.online) return 'gerade aktiv';
+  if (seen === null || seen === undefined) {
+    return u.last_login ? 'noch keine Aktivität erfasst' : 'noch nie angemeldet';
+  }
+  if (seen < 60) return `zuletzt aktiv vor ${seen} Min.`;
+  const when = fmtWhen(u.last_seen);
+  const hours = Math.round(seen / 60);
+  if (seen < 60 * 24) return `zuletzt aktiv vor ${hours} Std. · ${when}`;
+  const days = Math.round(hours / 24);
+  return `zuletzt aktiv vor ${days} ${days === 1 ? 'Tag' : 'Tagen'} · ${when}`;
+}
+
 async function loadUsers() {
   try {
     const data = await api('/api/users');
     $('#user-list').innerHTML = data.users.map((u) => {
       const self = u.id === state.user?.id;
       const roleLabel = u.role === 'admin' ? 'Administrator' : 'Mitarbeiter';
-      const last = u.last_login ? `zuletzt ${u.last_login.slice(0, 16)}` : 'noch nie angemeldet';
+      const seen = presenceText(u);
       return `<li class="user-item" data-user="${u.id}">
         <div>
           <div class="u-name">${esc(u.username)}
             <span class="role-badge ${u.role === 'admin' ? 'admin' : ''}">${roleLabel}</span>
             ${self ? '<span class="role-badge">du</span>' : ''}
+            <span class="presence ${u.online ? 'on' : 'off'}">${u.online ? 'online' : 'offline'}</span>
           </div>
-          <div class="u-meta">${esc(last)}</div>
+          <div class="u-meta">${esc(seen)}</div>
         </div>
         <div class="u-actions">
           ${self ? '' : `<button class="btn ghost small" type="button" data-uact="role" data-id="${u.id}" data-role="${u.role === 'admin' ? 'user' : 'admin'}">

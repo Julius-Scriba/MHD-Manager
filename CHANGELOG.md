@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.5.1 — 2026-10-28
+
+Anwesenheit: Admins sehen, wer gerade online ist.
+
+**Neu**
+- `users.last_seen` (Migration füllt aus `last_login` vor)
+- wird bei jeder authentifizierten Anfrage aktualisiert, höchstens einmal pro Minute
+  und Benutzer (In-Memory-Drosselung, kein Schreibzugriff pro Request)
+- „online" = Aktivität in den letzten 5 Minuten
+- `GET /api/users` liefert `online`, `last_seen`, `last_seen_min`
+- Benutzerliste zeigt Badge (online/offline) und lesbaren Text:
+  „gerade aktiv", „zuletzt aktiv vor 12 Min.", „zuletzt aktiv vor 3 Tagen · 26.10.2026, 09:14"
+
 ## v0.5.0 — 2026-10-28
 
 Vollständiges Protokoll aller Aktionen, nur für Administratoren sichtbar.

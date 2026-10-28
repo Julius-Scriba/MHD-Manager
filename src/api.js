@@ -22,6 +22,8 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
   const db = openDb(dbFile);
   const limiter = new LoginLimiter();
   setInterval(() => limiter.sweep(), 10 * 60_000).unref();
+  /** Zwischenspeicher, damit last_seen nicht bei jedem Request geschrieben wird. */
+  const lastSeenCache = new Map();
 
   const q = {
     getSetting: db.prepare('SELECT value FROM settings WHERE key = ?'),
@@ -31,8 +33,9 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     user: db.prepare('SELECT * FROM users WHERE username = ? COLLATE NOCASE'),
     userById: db.prepare('SELECT * FROM users WHERE id = ?'),
     setLastLogin: db.prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?"),
+    setLastSeen: db.prepare("UPDATE users SET last_seen = datetime('now') WHERE id = ?"),
     updatePassword: db.prepare('UPDATE users SET password_hash = ? WHERE id = ?'),
-    users: db.prepare(`SELECT id, username, role, created_at, last_login FROM users
+    users: db.prepare(`SELECT id, username, role, created_at, last_login, last_seen FROM users
       ORDER BY role = 'admin' DESC, username COLLATE NOCASE`),
     insertUser: db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)'),
     deleteUser: db.prepare('DELETE FROM users WHERE id = ?'),
@@ -192,8 +195,26 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
       return null;
     }
     const user = q.userById.get(row.user_id);
-    return user ? { user, token } : null;
+    if (!user) return null;
+    touchLastSeen(user.id);
+    return { user, token };
   }
+
+  /**
+   * Anwesenheit erfassen, aber nicht bei jedem Request schreiben:
+   * höchstens einmal pro Minute pro Benutzer.
+   */
+  const touchLastSeen = (userId) => {
+    const now = Date.now();
+    const last = lastSeenCache.get(userId) || 0;
+    if (now - last < 60_000) return;
+    lastSeenCache.set(userId, now);
+    try {
+      q.setLastSeen.run(userId);
+    } catch (err) {
+      console.error('[mhd] last_seen konnte nicht gesetzt werden:', err.message);
+    }
+  };
 
   const requireAuth = (req, res, next) => {
     const ctx = currentUser(req);
@@ -523,12 +544,23 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
   });
 
   /* ---------- Benutzerverwaltung (nur Admins) ---------- */
+  /** Anwesenheit: online = Aktivität in den letzten 5 Minuten. */
+  const ONLINE_WINDOW_MS = 5 * 60_000;
+  const presenceOf = (u) => {
+    if (!u.last_seen) return { online: false, last_seen: null, last_seen_min: null };
+    const t = Date.parse(u.last_seen.replace(' ', 'T') + 'Z');
+    if (Number.isNaN(t)) return { online: false, last_seen: u.last_seen, last_seen_min: null };
+    const minutes = Math.max(0, Math.round((Date.now() - t) / 60_000));
+    return { online: Date.now() - t < ONLINE_WINDOW_MS, last_seen: u.last_seen, last_seen_min: minutes };
+  };
+
   const safeUser = (u) => ({
     id: u.id,
     username: u.username,
     role: u.role || 'user',
     created_at: u.created_at,
     last_login: u.last_login,
+    ...presenceOf(u),
   });
 
   api.get('/users', requireAdmin, (_req, res) => {
