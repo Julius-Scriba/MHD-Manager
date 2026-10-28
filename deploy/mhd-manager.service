@@ -1,0 +1,26 @@
+[Unit]
+Description=MHD Manager (Mindesthaltbarkeitsdaten)
+Documentation=file:///opt/mhd-manager/README.md
+After=network.target
+
+[Service]
+Type=simple
+User=mhd
+Group=mhd
+WorkingDirectory=/opt/mhd-manager
+Environment=NODE_ENV=production
+Environment=PORT=8091
+Environment=HOST=127.0.0.1
+Environment=DATA_DIR=/var/lib/mhd-manager
+ExecStart=/usr/bin/node src/server.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/mhd-manager
+LimitNOFILE=8192
+
+[Install]
+WantedBy=multi-user.target
