@@ -68,6 +68,19 @@ function createV3(db) {
     console.log('[mhd] Rollen-Spalte ergänzt, erster Benutzer ist Admin.');
   }
 
+  // v3 → v3.2: Protokoll braucht Handelnden, Entität und IP für ein brauchbares Audit-Log.
+  const evCols = db.prepare('PRAGMA table_info(events)').all().map((c) => c.name);
+  const evAdds = [
+    ['user_id', 'INTEGER'],
+    ['username', "TEXT NOT NULL DEFAULT ''"],
+    ['entity', "TEXT NOT NULL DEFAULT ''"],
+    ['entity_name', "TEXT NOT NULL DEFAULT ''"],
+    ['ip', "TEXT NOT NULL DEFAULT ''"],
+  ];
+  for (const [col, type] of evAdds) {
+    if (!evCols.includes(col)) db.exec(`ALTER TABLE events ADD COLUMN ${col} ${type}`);
+  }
+
   // Produkte tragen den Kategorienamen redundant? Nein — category bleibt Text,
   // die Tabelle ist die Auswahlliste. So bleiben Altdaten gültig.
 }

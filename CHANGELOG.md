@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.5.0 — 2026-10-28
+
+Vollständiges Protokoll aller Aktionen, nur für Administratoren sichtbar.
+
+**Neu**
+- `events`-Tabelle um Handelnden (`user_id`, `username`), Entität (`entity`, `entity_name`)
+  und Client-IP erweitert
+- Jede Änderung wird protokolliert: Produkte anlegen/ändern/löschen, Chargen anlegen/einfrieren/
+  Menge/löschen, Kategorien, Benutzer anlegen/löschen/Rolle/Passwort-Reset,
+  eigener Passwortwechsel, fehlgeschlagene Anmeldungen und Passwortversuche, Einstellungen
+- `GET /api/events` (nur Admin): Filter nach Typ, Person und Datum, Limit bis 500
+- Dialog „Protokoll" im Einstellungsbereich mit lesbaren Bezeichnungen, Filtern und IP-Spalte
+- Produktänderungen protokollieren die geänderten Felder im Klartext
+  (`Warnzeit: 7 → 2, Einfrieren: – → 1`)
+
+**Absicherung**
+- Protokoll ist serverseitig auf Admins begrenzt; Mitarbeiter erhalten `403`
+- Ein fehlgeschlagener Protokolleintrag bricht die Fachaktion nie ab (try/catch + Log)
+
 ## v0.4.0 — 2026-10-28
 
 Mehrere Benutzer mit Rollen.

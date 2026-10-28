@@ -552,6 +552,106 @@ passwordForm.addEventListener('submit', async (e) => {
 });
 
 $('#btn-export').addEventListener('click', () => { window.location.href = '/api/export'; });
+
+/* ---------- Protokoll (nur Admins) ---------- */
+const LOG_LABELS = {
+  login_ok: ['Anmeldung', 't-info'],
+  login_failed: ['Fehlversuch', 't-danger'],
+  product_created: ['Produkt neu', 't-info'],
+  product_updated: ['Produkt geändert', 't-info'],
+  product_deleted: ['Produkt gelöscht', 't-danger'],
+  batch_created: ['Charge neu', 't-info'],
+  batch_frozen: ['eingefroren', 't-info'],
+  quantity_changed: ['Menge geändert', 't-info'],
+  batch_deleted: ['Charge gelöscht', 't-danger'],
+  category_created: ['Kategorie neu', 't-info'],
+  category_deleted: ['Kategorie weg', 't-warn'],
+  user_created: ['Benutzer neu', 't-info'],
+  user_deleted: ['Benutzer gelöscht', 't-danger'],
+  user_role_changed: ['Rolle geändert', 't-warn'],
+  user_password_reset: ['Passwort zurückgesetzt', 't-warn'],
+  password_changed: ['Passwort geändert', 't-info'],
+  password_change_failed: ['Passwort-Fehlversuch', 't-danger'],
+  settings_changed: ['Einstellung', 't-info'],
+};
+const logLabel = (type) => LOG_LABELS[type] || [type.replace(/_/g, ' '), ''];
+const fmtStamp = (s) => {
+  if (!s) return '–';
+  const d = new Date(s.replace(' ', 'T') + 'Z'); // DB speichert UTC
+  if (Number.isNaN(d.getTime())) return s;
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
+let logLoadedOnce = false;
+
+async function loadLog() {
+  const params = new URLSearchParams();
+  const type = $('#log-type').value;
+  const user = $('#log-user').value;
+  const since = $('#log-since').value;
+  if (type) params.set('type', type);
+  if (user) params.set('user', user);
+  if (since) params.set('since', since);
+  params.set('limit', '300');
+
+  const body = $('#log-body');
+  body.innerHTML = '<tr><td colspan="5" class="log-empty">Lädt …</td></tr>';
+  try {
+    const data = await api(`/api/events?${params}`);
+    const types = $('#log-type');
+    if (types.options.length <= 1) {
+      for (const t of data.filters.types) {
+        const o = document.createElement('option');
+        o.value = t.type;
+        o.textContent = `${logLabel(t.type)[0]} (${t.n})`;
+        types.append(o);
+      }
+    }
+    const users = $('#log-user');
+    if (users.options.length <= 1) {
+      for (const u of data.filters.users) {
+        const o = document.createElement('option');
+        o.value = u.username;
+        o.textContent = `${u.username} (${u.n})`;
+        users.append(o);
+      }
+    }
+
+    $('#log-summary').textContent = data.events.length
+      ? `${data.events.length} von insgesamt ${data.total} Einträgen`
+      : '';
+
+    body.innerHTML = data.events.length
+      ? data.events.map((e) => {
+        const [label, cls] = logLabel(e.type);
+        const who = e.username || '–';
+        const obj = e.entity_name || '';
+        return `<tr>
+          <td class="when">${esc(fmtStamp(e.at))}</td>
+          <td class="who">${esc(who)}</td>
+          <td><span class="log-type ${cls}">${esc(label)}</span></td>
+          <td>${esc(obj)}</td>
+          <td class="detail">${esc(e.detail || '')}${e.ip ? ` <span class="u-meta">· ${esc(e.ip)}</span>` : ''}</td>
+        </tr>`;
+      }).join('')
+      : '<tr><td colspan="5" class="log-empty">Keine Einträge für diese Auswahl.</td></tr>';
+  } catch (err) {
+    body.innerHTML = `<tr><td colspan="5" class="log-empty">${esc(err.message)}</td></tr>`;
+  }
+}
+
+$('#btn-log').addEventListener('click', () => {
+  if (state.user?.role !== 'admin') return;
+  settingsDialog.close();
+  $('#log-dialog').showModal();
+  loadLog();
+  logLoadedOnce = true;
+});
+for (const id of ['#log-type', '#log-user', '#log-since']) {
+  $(id).addEventListener('change', loadLog);
+}
+
 $('#btn-logout').addEventListener('click', async () => {
   await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
   window.location.replace('/login.html');

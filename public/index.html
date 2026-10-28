@@ -212,9 +212,44 @@
       <h3>Daten</h3>
       <div class="section-actions spread">
         <button class="btn ghost small" type="button" id="btn-export">JSON-Export</button>
+        <button class="btn ghost small" type="button" id="btn-log">Protokoll</button>
         <button class="btn ghost small" type="button" id="btn-logout">Abmelden</button>
       </div>
     </section>
+
+    <div class="settings-footer">
+      <button class="btn ghost" type="button" data-close>Schließen</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="log-dialog" class="sheet wide">
+  <div class="settings-body">
+    <h2>Protokoll</h2>
+    <p class="sheet-sub">Jede Änderung, angemeldet oder abgelehnt — neueste zuerst.</p>
+
+    <div class="log-filters">
+      <label class="field">
+        <span>Art</span>
+        <select id="log-type"><option value="">alle</option></select>
+      </label>
+      <label class="field">
+        <span>Person</span>
+        <select id="log-user"><option value="">alle</option></select>
+      </label>
+      <label class="field">
+        <span>Ab Datum</span>
+        <input id="log-since" type="date">
+      </label>
+    </div>
+
+    <p class="hint" id="log-summary"></p>
+    <div class="log-scroll">
+      <table class="log-table">
+        <thead><tr><th>Zeitpunkt</th><th>Person</th><th>Vorgang</th><th>Objekt</th><th>Details</th></tr></thead>
+        <tbody id="log-body"></tbody>
+      </table>
+    </div>
 
     <div class="settings-footer">
       <button class="btn ghost" type="button" data-close>Schließen</button>

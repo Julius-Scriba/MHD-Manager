@@ -250,3 +250,33 @@ dialog.sheet h2 { margin: 0 0 14px; font-size: 17px; }
   .user-item { grid-template-columns: 1fr; }
   .user-item .u-actions { justify-content: flex-start; }
 }
+
+/* ---------- Protokoll ---------- */
+.sheet.wide { width: min(1040px, 96vw); }
+.log-filters {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 14px 0 10px;
+}
+.log-scroll { max-height: 55vh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+.log-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.log-table thead th {
+  position: sticky; top: 0; z-index: 1; text-align: left; font-weight: 650;
+  font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+  background: var(--surface-2); padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+.log-table td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.log-table tr:last-child td { border-bottom: 0; }
+.log-table td.when { white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
+.log-table td.who { white-space: nowrap; }
+.log-table td.detail { color: var(--muted); }
+.log-type {
+  display: inline-block; font-size: 10.5px; font-weight: 650; padding: 2px 7px;
+  border-radius: 999px; border: 1px solid var(--line); white-space: nowrap;
+}
+.log-type.t-danger { color: var(--expired); border-color: color-mix(in srgb, var(--expired) 45%, transparent); }
+.log-type.t-warn { color: var(--soon); border-color: color-mix(in srgb, var(--soon) 45%, transparent); }
+.log-type.t-info { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.log-empty { padding: 24px; text-align: center; color: var(--muted); font-size: 13px; }
+@media (max-width: 620px) {
+  .log-filters { grid-template-columns: 1fr; }
+  .log-table td.detail, .log-table th:nth-child(5) { display: none; }
+}

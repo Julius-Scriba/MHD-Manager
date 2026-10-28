@@ -12,6 +12,11 @@ const DEFAULT_WARN_DAYS = 7;
 const SESSION_COOKIE = 'mhd_session';
 const SESSION_TTL_MS = 30 * 24 * 3600_000;
 
+/** ISO-Datum (YYYY-MM-DD) als DD.MM.YYYY für lesbare Protokolltexte. */
+const fmtDate = (iso) => (typeof iso === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(iso)
+  ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`
+  : String(iso ?? '–'));
+
 export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = true }) {
   const app = express();
   const db = openDb(dbFile);
@@ -55,7 +60,18 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     updateBatch: db.prepare(`UPDATE batches SET quantity=?, best_before=?, frozen_on=?, note=?,
       updated_at=datetime('now') WHERE id=?`),
     deleteBatch: db.prepare('DELETE FROM batches WHERE id = ?'),
-    logEvent: db.prepare('INSERT INTO events (batch_id, product_id, type, detail) VALUES (?, ?, ?, ?)'),
+    logEvent: db.prepare(`INSERT INTO events
+      (batch_id, product_id, type, detail, user_id, username, entity, entity_name, ip)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+    events: db.prepare(`SELECT * FROM events
+      WHERE (? = '' OR type LIKE ?)
+        AND (? = '' OR username = ?)
+        AND (? = '' OR at >= ?)
+      ORDER BY id DESC LIMIT ?`),
+    eventTypes: db.prepare('SELECT type, COUNT(*) AS n FROM events GROUP BY type ORDER BY type'),
+    eventUsers: db.prepare(`SELECT username, COUNT(*) AS n FROM events
+      WHERE username <> '' GROUP BY username ORDER BY username COLLATE NOCASE`),
+    eventCount: db.prepare('SELECT COUNT(*) AS n FROM events'),
     categories: db.prepare('SELECT * FROM categories ORDER BY active DESC, sort ASC, name COLLATE NOCASE ASC'),
     categoryByName: db.prepare('SELECT * FROM categories WHERE name = ? COLLATE NOCASE'),
     insertCategory: db.prepare('INSERT INTO categories (name, sort) VALUES (?, ?)'),
@@ -194,6 +210,56 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     next();
   };
 
+  /* ---------- Protokoll ---------- */
+  /** Client-IP hinter Nginx, ohne sich auf einen einzelnen Header zu verlassen. */
+  const clientIp = (req) => {
+    const fwd = String(req?.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
+    return (fwd || req?.socket?.remoteAddress || '').replace(/^::ffff:/, '').slice(0, 60);
+  };
+
+  /**
+   * Einheitlicher Protokolleintrag.
+   * actor: req (aus der Sitzung) oder user (bei Login, wo es noch keine Sitzung gibt).
+   */
+  const ql = (type, opts = {}) => {
+    const actor = opts.user || opts.req?.auth?.user || null;
+    try {
+      q.logEvent.run(
+        opts.batchId ?? null,
+        opts.productId ?? null,
+        type,
+        String(opts.detail || '').slice(0, 300),
+        actor?.id ?? null,
+        String(opts.username ?? actor?.username ?? '').slice(0, 64),
+        String(opts.entity || '').slice(0, 24),
+        String(opts.entityName ?? '').slice(0, 120),
+        clientIp(opts.req)
+      );
+    } catch (err) {
+      // Protokollieren darf nie eine fachliche Aktion zum Scheitern bringen.
+      console.error('[mhd] Protokolleintrag fehlgeschlagen:', err.message);
+    }
+  };
+
+  const productName = (id) => q.product.get(id)?.name || `Produkt #${id}`;
+
+  /** Änderungen am Produkt lesbar machen — nur die Felder, die sich wirklich geändert haben. */
+  const describeProductChange = (before, after) => {
+    if (!before) return '';
+    const labels = {
+      name: 'Name', category: 'Kategorie', unit: 'Einheit', location: 'Ort',
+      warn_days: 'Warnzeit', freeze_days: 'Einfrieren', tk_days: 'TK-Tage',
+      pace: 'Tempo', notes: 'Notiz',
+    };
+    const changed = [];
+    for (const [key, label] of Object.entries(labels)) {
+      const a = before[key] ?? null;
+      const b = after[key] ?? null;
+      if (a !== b) changed.push(`${label}: ${a === null ? '–' : a} → ${b === null ? '–' : b}`);
+    }
+    return changed.length ? changed.join(', ').slice(0, 300) : 'ohne Feldänderung';
+  };
+
   /* ---------- Login / Logout ---------- */
   app.post('/api/login', async (req, res) => {
     const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unbekannt';
@@ -219,7 +285,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
 
     if (!ok) {
       const lock = limiter.fail(keys);
-      q.logEvent.run(null, null, 'login_failed', `${username} von ${ip}`);
+      ql('login_failed', { detail: `Benutzername "${username}"`, username: username });
       if (lock > 0) {
         res.setHeader('Retry-After', String(lock));
         return res.status(429).json({
@@ -235,7 +301,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     const token = newSessionToken(sessionSecret);
     q.sessionInsert.run(token, user.id, Date.now() + SESSION_TTL_MS, String(req.headers['user-agent'] || '').slice(0, 200));
     q.setLastLogin.run(user.id);
-    q.logEvent.run(null, null, 'login_ok', `${user.username} von ${ip}`);
+    ql('login_ok', { user, detail: 'Anmeldung erfolgreich' });
 
     res.setHeader('Set-Cookie', cookieFor(token, Math.floor(SESSION_TTL_MS / 1000)));
     res.json({
@@ -315,27 +381,34 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
       value.warn_days, value.freeze_days, value.tk_days, value.pace, value.notes
     );
     const id = Number(info.lastInsertRowid);
-    q.logEvent.run(null, id, 'product_created', value.name);
+    ql('product_created', { req, productId: id, entityName: value.name, detail: `${value.category || 'ohne Kategorie'} · ${value.unit}` });
     res.status(201).json(loadProduct(id, todayUTC()));
   });
 
   api.put('/products/:id', (req, res) => {
     const id = Number(req.params.id);
-    if (!q.product.get(id)) return res.status(404).json({ error: 'Produkt nicht gefunden.' });
+    const before = q.product.get(id);
+    if (!before) return res.status(404).json({ error: 'Produkt nicht gefunden.' });
     const { ok, errors, value } = validateProduct(req.body);
     if (!ok) return res.status(400).json({ errors });
     q.updateProduct.run(
       value.name, value.category, value.unit, value.location,
       value.warn_days, value.freeze_days, value.tk_days, value.pace, value.notes, id
     );
-    q.logEvent.run(null, id, 'product_updated', value.name);
+    ql('product_updated', { req, productId: id, entityName: value.name, detail: describeProductChange(before, value) });
     res.json(loadProduct(id, todayUTC()));
   });
 
   api.delete('/products/:id', (req, res) => {
     const id = Number(req.params.id);
-    if (!q.product.get(id)) return res.status(404).json({ error: 'Produkt nicht gefunden.' });
+    const product = q.product.get(id);
+    if (!product) return res.status(404).json({ error: 'Produkt nicht gefunden.' });
+    const batches = q.batchesOf.all(id).length;
     q.deleteProduct.run(id);
+    ql('product_deleted', {
+      req, productId: id, entityName: product.name,
+      detail: `${product.category || 'ohne Kategorie'} · ${batches} Charge(n) mitgelöscht`,
+    });
     res.status(204).end();
   });
 
@@ -348,8 +421,10 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     if (!ok) return res.status(400).json({ errors });
     const info = q.insertBatch.run(id, value.quantity, value.best_before, value.frozen_on, value.note);
     const batchId = Number(info.lastInsertRowid);
-    q.logEvent.run(batchId, id, 'batch_created',
-      `${value.quantity} · MHD ${value.best_before}${value.frozen_on ? ` · TK seit ${value.frozen_on}` : ''}`);
+    ql('batch_created', {
+      req, productId: id, batchId, entityName: product.name,
+      detail: `${value.quantity} ${product.unit || ''} · MHD ${fmtDate(value.best_before)}${value.frozen_on ? ` · TK seit ${fmtDate(value.frozen_on)}` : ''}`.trim(),
+    });
     res.status(201).json(decorateBatch(q.batch.get(batchId), product, todayUTC()));
   });
 
@@ -361,7 +436,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     if (!ok) return res.status(400).json({ errors });
     q.updateBatch.run(value.quantity, value.best_before, value.frozen_on, value.note, id);
     if (!existing.frozen_on && value.frozen_on) {
-      q.logEvent.run(id, existing.product_id, 'batch_frozen', `eingefroren am ${value.frozen_on}`);
+      ql('batch_frozen', { req, productId: existing.product_id, batchId: id, entityName: productName(existing.product_id), detail: `eingefroren am ${fmtDate(value.frozen_on)}` });
     }
     res.json(decorateBatch(q.batch.get(id), q.product.get(existing.product_id), todayUTC()));
   });
@@ -378,7 +453,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     const on = isValidDate(req.body?.frozen_on) ? req.body.frozen_on : todayUTC();
     if (daysUntil(on) > 0) return res.status(400).json({ errors: ['Einfrierdatum darf nicht in der Zukunft liegen.'] });
     q.updateBatch.run(existing.quantity, existing.best_before, on, existing.note, id);
-    q.logEvent.run(id, existing.product_id, 'batch_frozen', `eingefroren am ${on}`);
+    ql('batch_frozen', { req, productId: existing.product_id, batchId: id, entityName: product?.name, detail: `eingefroren am ${fmtDate(on)}` });
     res.json(decorateBatch(q.batch.get(id), product, todayUTC()));
   });
 
@@ -391,7 +466,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
       return res.status(400).json({ errors: ['Menge muss eine Zahl zwischen 0 und 999999 sein.'] });
     }
     q.updateBatch.run(n, existing.best_before, existing.frozen_on, existing.note, id);
-    q.logEvent.run(id, existing.product_id, 'quantity_changed', `${existing.quantity} → ${n}`);
+    ql('quantity_changed', { req, productId: existing.product_id, batchId: id, entityName: productName(existing.product_id), detail: `${existing.quantity} → ${n}` });
     res.json(decorateBatch(q.batch.get(id), q.product.get(existing.product_id), todayUTC()));
   });
 
@@ -400,7 +475,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     const existing = q.batch.get(id);
     if (!existing) return res.status(404).json({ error: 'Charge nicht gefunden.' });
     q.deleteBatch.run(id);
-    q.logEvent.run(null, existing.product_id, 'batch_deleted', `MHD ${existing.best_before}`);
+    ql('batch_deleted', { req, productId: existing.product_id, batchId: id, entityName: productName(existing.product_id), detail: `MHD ${fmtDate(existing.best_before)} · ${existing.quantity}` });
     res.status(204).end();
   });
 
@@ -422,7 +497,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     }
     const maxSort = q.categories.all().reduce((m, c) => Math.max(m, c.sort), 0);
     const info = q.insertCategory.run(check.value, maxSort + 10);
-    q.logEvent.run(null, null, 'category_created', check.value);
+    ql('category_created', { req, entity: 'category', entityName: check.value });
     res.status(201).json({ id: Number(info.lastInsertRowid), name: check.value, active: 1 });
   });
 
@@ -434,10 +509,11 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     if (used > 0) {
       // Nicht hart löschen: bestehende Produkte würden ihren Kategorienamen verlieren
       q.deactivateCategory.run(id);
+      ql('category_deleted', { req, entity: 'category', entityName: cat.name, detail: `deaktiviert (noch ${used} Produkt(e))` });
       return res.json({ id, active: 0, in_use: used, note: `Kategorie bleibt für ${used} Produkt(e) erhalten.` });
     }
     q.deleteCategory.run(id);
-    q.logEvent.run(null, null, 'category_deleted', cat.name);
+    ql('category_deleted', { req, entity: 'category', entityName: cat.name, detail: 'gelöscht' });
     res.status(204).end();
   });
 
@@ -480,7 +556,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     const hash = await hashPassword(password);
     const info = q.insertUser.run(username, hash, role);
     const id = Number(info.lastInsertRowid);
-    q.logEvent.run(null, null, 'user_created', `${username} (${role})`);
+    ql('user_created', { req, entity: 'user', entityName: username, detail: role === 'admin' ? 'als Administrator' : 'als Mitarbeiter' });
     res.status(201).json(safeUser(q.userById.get(id)));
   });
 
@@ -495,7 +571,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     q.updatePassword.run(await hashPassword(password), id);
     // Fremde Sitzungen sofort beenden
     if (id !== req.auth.user.id) q.sessionDeleteUser.run(id);
-    q.logEvent.run(null, null, 'user_password_reset', target.username);
+    ql('user_password_reset', { req, entity: 'user', entityName: target.username, detail: id !== req.auth.user.id ? 'Sitzungen beendet' : 'eigenes Konto' });
     res.json({ ok: true, sessions_ended: id !== req.auth.user.id });
   });
 
@@ -510,7 +586,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
       return res.status(409).json({ errors: ['Der letzte Administrator kann nicht gelöscht werden.'] });
     }
     q.deleteUser.run(id); // Sessions hängen per ON DELETE CASCADE dran
-    q.logEvent.run(null, null, 'user_deleted', target.username);
+    ql('user_deleted', { req, entity: 'user', entityName: target.username, detail: `Rolle ${target.role || 'user'}` });
     res.status(204).end();
   });
 
@@ -526,7 +602,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
       return res.status(409).json({ errors: ['Der letzte Administrator behält seine Rolle.'] });
     }
     q.setRole.run(role, id);
-    q.logEvent.run(null, null, 'user_role_changed', `${target.username} → ${role}`);
+    ql('user_role_changed', { req, entity: 'user', entityName: target.username, detail: `${target.role || 'user'} → ${role}` });
     res.json(safeUser(q.userById.get(id)));
   });
 
@@ -548,7 +624,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
       return res.status(400).json({ errors: ['Das neue Passwort muss sich vom alten unterscheiden.'] });
     }
     if (!(await verifyPassword(current, req.auth.user.password_hash))) {
-      q.logEvent.run(null, null, 'password_change_failed', req.auth.user.username);
+      ql('password_change_failed', { req, entity: 'user', entityName: req.auth.user.username, detail: 'falsches aktuelles Passwort' });
       return res.status(403).json({ errors: ['Das aktuelle Passwort ist falsch.'] });
     }
 
@@ -562,7 +638,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
       token, req.auth.user.id, Date.now() + SESSION_TTL_MS,
       String(req.headers['user-agent'] || '').slice(0, 200)
     );
-    q.logEvent.run(null, null, 'password_changed', req.auth.user.username);
+    ql('password_changed', { req, entity: 'user', entityName: req.auth.user.username, detail: 'alle anderen Sitzungen beendet' });
 
     res.setHeader('Set-Cookie', cookieFor(token, Math.floor(SESSION_TTL_MS / 1000)));
     res.json({ ok: true, other_sessions_ended: true });
@@ -573,8 +649,33 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     if (!Number.isInteger(n) || n < 0 || n > 365) {
       return res.status(400).json({ errors: ['warn_days muss eine ganze Zahl zwischen 0 und 365 sein.'] });
     }
+    const previous = defaultWarn();
     q.setSetting.run('warn_days', String(n));
+    if (previous !== n) {
+      ql('settings_changed', { req, entity: 'setting', entityName: 'Standard-Warnzeit', detail: `${previous} → ${n} Tage` });
+    }
     res.json({ warn_days: n });
+  });
+
+  /* ---------- Protokoll (nur Admins) ---------- */
+  api.get('/events', requireAdmin, (req, res) => {
+    const type = String(req.query.type || '').trim().slice(0, 64);
+    const user = String(req.query.user || '').trim().slice(0, 64);
+    const since = String(req.query.since || '').trim();
+    const limitRaw = Number(req.query.limit);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.trunc(limitRaw), 1), 500) : 200;
+    const sinceValue = /^\d{4}-\d{2}-\d{2}$/.test(since) ? since : '';
+
+    const rows = q.events.all(type, type ? `${type}%` : '', user, user, sinceValue, sinceValue, limit);
+    res.json({
+      events: rows,
+      total: q.eventCount.get().n,
+      limit,
+      filters: {
+        types: q.eventTypes.all(),
+        users: q.eventUsers.all(),
+      },
+    });
   });
 
   api.get('/export', (_req, res) => {
