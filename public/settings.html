@@ -188,6 +188,47 @@
       </table>
     </div>
   </section>
+
+<!-- Passwort setzen (Admin) — eigener Dialog statt Browser-Prompt -->
+<dialog id="pw-dialog" class="sheet">
+  <div class="settings-body">
+    <h2>Passwort setzen</h2>
+    <p class="sheet-sub" id="pw-dialog-sub"></p>
+    <form id="pw-dialog-form" novalidate>
+      <input type="text" id="pw-dialog-user" autocomplete="username" class="visually-hidden" tabindex="-1" aria-hidden="true" readonly>
+      <label class="field full">
+        <span>Neues Passwort</span>
+        <span class="pw-wrap">
+          <input name="new-password" id="pwd-new" type="password" autocomplete="new-password"
+                 minlength="10" maxlength="200" required>
+          <button class="pw-eye" type="button" data-eye="#pwd-new" aria-label="Passwort anzeigen" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+          </button>
+        </span>
+      </label>
+      <div class="pw-meter" id="pwd-meter" hidden>
+        <div class="pw-meter-bar"><span id="pwd-meter-fill"></span></div>
+        <span class="pw-meter-text" id="pwd-meter-text"></span>
+      </div>
+      <label class="field full">
+        <span>Wiederholen</span>
+        <span class="pw-wrap">
+          <input name="confirm-password" id="pwd-confirm" type="password" autocomplete="new-password"
+                 minlength="10" maxlength="200" required>
+          <button class="pw-eye" type="button" data-eye="#pwd-confirm" aria-label="Wiederholung anzeigen" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+          </button>
+        </span>
+      </label>
+      <div class="section-actions spread">
+        <button class="btn ghost" type="button" id="pwd-cancel">Abbrechen</button>
+        <button class="btn primary" type="submit" id="pwd-save">Passwort setzen</button>
+      </div>
+      <p class="form-error" id="pwd-error" role="alert" hidden></p>
+      <p class="form-ok" id="pwd-ok" role="status" hidden></p>
+    </form>
+  </div>
+</dialog>
 </main>
 
 <script src="/settings.js"></script>

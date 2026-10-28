@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.7.2 — 2026-10-28
+
+Passwort setzen im Benutzer-Tab ohne Browser-Dialog.
+
+**Geändert**
+- „Passwort" bei einem Benutzer öffnet einen eigenen Dialog statt `prompt()`:
+  eigenes Passwortfeld mit Auge, Stärkeanzeige, Wiederholung, Inline-Fehler
+- Unsichtbares Benutzernamen-Feld im Dialog, damit der Passwort-Manager den
+  Eintrag der richtigen Person zuordnet
+- Erfolgsmeldung im Dialog, schließt nach kurzer Bestätigung
+
+**Technisch**
+- Auge-Schalter arbeitet jetzt per Delegation — funktioniert auch für später
+  eingefügte Felder
+
 ## v0.7.1 — 2026-10-28
 
 Passwortfelder sind echte, klar erkennbare Passwortfelder mit Einblick.

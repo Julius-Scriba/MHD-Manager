@@ -395,3 +395,8 @@ dialog.sheet h2 { margin: 0 0 14px; font-size: 17px; }
 .pw-meter-bar span[data-level="4"] { background: var(--accent); }
 .pw-meter-bar span[data-level="5"] { background: var(--ok); }
 .pw-meter-text { font-size: 11.5px; color: var(--muted); min-width: 76px; text-align: right; }
+
+/* Dialog: Innenabstand, wenn kein <form> direktes Kind ist */
+dialog.sheet .settings-body { padding: 20px; }
+dialog.sheet .settings-body h2 { margin: 0 0 10px; font-size: 17px; }
+dialog.sheet .settings-body form { padding: 0; }

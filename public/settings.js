@@ -107,18 +107,20 @@ $('#btn-export').addEventListener('click', () => { window.location.href = '/api/
 const EYE_ON = '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/>';
 const EYE_OFF = '<path d="M3 3l18 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M10.5 6.2A9.6 9.6 0 0 1 12 6c6.4 0 10 6 10 6a17 17 0 0 1-3 3.6M6.3 7.6C3.6 9.4 2 12 2 12s3.6 6 10 6a9.9 9.9 0 0 0 4.2-.9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>';
 
-for (const btn of document.querySelectorAll('.pw-eye')) {
-  btn.addEventListener('click', () => {
-    const input = $(btn.dataset.eye);
-    const show = input.type === 'password';
-    input.type = show ? 'text' : 'password';
-    btn.setAttribute('aria-pressed', String(show));
-    btn.setAttribute('aria-label', `${show ? 'Verbergen' : 'Anzeigen'}`);
-    btn.classList.toggle('on', show);
-    btn.querySelector('svg').innerHTML = show ? EYE_OFF : EYE_ON;
-    input.focus();
-  });
-}
+/* Delegiert, damit auch später eingefügte Felder funktionieren. */
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.pw-eye');
+  if (!btn) return;
+  const input = $(btn.dataset.eye);
+  if (!input) return;
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  btn.setAttribute('aria-pressed', String(show));
+  btn.setAttribute('aria-label', show ? 'Verbergen' : 'Anzeigen');
+  btn.classList.toggle('on', show);
+  btn.querySelector('svg').innerHTML = show ? EYE_OFF : EYE_ON;
+  input.focus();
+});
 
 /* Einfache Passwortstärke — Hinweis, keine Vorschrift. */
 const meterFill = $('#pw-meter-fill');
@@ -307,6 +309,79 @@ async function loadUsers() {
   }
 }
 
+/* ---------- Passwort setzen (Admin) ---------- */
+const pwDialog = $('#pw-dialog');
+const pwDialogForm = $('#pw-dialog-form');
+let pwTarget = null;
+
+function openPwDialog(id, name) {
+  pwTarget = id;
+  pwDialogForm.reset();
+  $('#pwd-error').hidden = true;
+  $('#pwd-ok').hidden = true;
+  $('#pwd-meter').hidden = true;
+  $('#pw-dialog-sub').textContent = `Neues Passwort für „${name}". Die Person wird auf allen Geräten abgemeldet.`;
+  $('#pw-dialog-user').value = name;
+  pwDialog.showModal();
+  setTimeout(() => $('#pwd-new').focus(), 40);
+}
+
+$('#pwd-cancel').addEventListener('click', () => pwDialog.close());
+
+pwDialog.addEventListener('close', () => {
+  pwDialogForm.reset();
+  pwTarget = null;
+});
+
+$('#pwd-new').addEventListener('input', (e) => {
+  const pw = e.target.value;
+  const meter = $('#pwd-meter');
+  if (!pw) { meter.hidden = true; return; }
+  meter.hidden = false;
+  const score = passwordScore(pw);
+  const labels = ['sehr schwach', 'schwach', 'mittel', 'gut', 'stark', 'sehr stark'];
+  const fill = $('#pwd-meter-fill');
+  fill.style.width = `${(score / 5) * 100}%`;
+  fill.dataset.level = String(score);
+  $('#pwd-meter-text').textContent = labels[score];
+});
+
+pwDialogForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('#pwd-error').hidden = true;
+  $('#pwd-ok').hidden = true;
+  const next = $('#pwd-new').value;
+  const confirm = $('#pwd-confirm').value;
+  if (next.length < 10) {
+    $('#pwd-error').textContent = 'Das Passwort braucht mindestens 10 Zeichen.';
+    $('#pwd-error').hidden = false;
+    return;
+  }
+  if (next !== confirm) {
+    $('#pwd-error').textContent = 'Die beiden Passwörter stimmen nicht überein.';
+    $('#pwd-error').hidden = false;
+    return;
+  }
+  const save = $('#pwd-save');
+  save.disabled = true;
+  try {
+    await api(`/api/users/${pwTarget}/password`, {
+      method: 'POST', body: JSON.stringify({ password: next }),
+    });
+    $('#pwd-ok').textContent = 'Passwort gesetzt. Alle Sitzungen der Person wurden beendet.';
+    $('#pwd-ok').hidden = false;
+    pwDialogForm.reset();
+    $('#pwd-meter').hidden = true;
+    await loadUsers();
+    setTimeout(() => { if (pwDialog.open) pwDialog.close(); }, 1400);
+  } catch (err) {
+    $('#pwd-error').textContent = err.message;
+    $('#pwd-error').hidden = false;
+  } finally {
+    save.disabled = false;
+  }
+});
+
 $('#user-list').addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-uact]');
   if (!btn) return;
@@ -321,10 +396,9 @@ $('#user-list').addEventListener('click', async (e) => {
       }
       await api(`/api/users/${id}`, { method: 'DELETE' });
     } else if (act === 'reset') {
-      const pw = prompt(`Neues Passwort für „${btn.dataset.name}" (min. 10 Zeichen):`);
-      if (!pw) { btn.disabled = false; return; }
-      await api(`/api/users/${id}/password`, { method: 'POST', body: JSON.stringify({ password: pw }) });
-      alert('Passwort gesetzt.');
+      openPwDialog(id, btn.dataset.name);
+      btn.disabled = false;
+      return;
     } else if (act === 'role') {
       await api(`/api/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role: btn.dataset.role }) });
     }
