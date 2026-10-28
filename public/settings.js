@@ -212,12 +212,31 @@ $('#user-form').addEventListener('submit', async (e) => {
       }),
     });
     form.reset();
+    toggleUserForm(false);
     await loadUsers();
   } catch (err) {
     box.textContent = err.message;
     box.hidden = false;
   }
 });
+
+/* „Neuer Benutzer" bleibt zugeklappt, bis man es wirklich braucht. */
+function toggleUserForm(open) {
+  const wrap = $('#user-form-wrap');
+  const btn = $('#btn-new-user');
+  wrap.hidden = !open;
+  btn.setAttribute('aria-expanded', String(open));
+  if (open) {
+    $('#user-error').hidden = true;
+    $('#user-form').username.focus();
+  } else {
+    $('#user-form').reset();
+    $('#user-error').hidden = true;
+  }
+}
+
+$('#btn-new-user').addEventListener('click', () => toggleUserForm($('#user-form-wrap').hidden));
+$('#btn-cancel-user').addEventListener('click', () => toggleUserForm(false));
 
 /* ---------- Protokoll ---------- */
 const LOG_LABELS = {

@@ -85,34 +85,43 @@
 
   <!-- Benutzer (nur Admins) -->
   <section class="panel" data-panel="users" hidden>
-    <h2>Benutzer</h2>
+    <div class="panel-head">
+      <h2>Benutzer</h2>
+      <button class="btn primary small" type="button" id="btn-new-user" aria-expanded="false" aria-controls="user-form-wrap">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>Neuer Benutzer</span>
+      </button>
+    </div>
     <p class="hint">Wer gerade online ist, siehst du am grünen Punkt. „Online" heißt: in den letzten 5 Minuten aktiv.</p>
     <ul class="user-list" id="user-list"></ul>
 
-    <h2>Neuer Benutzer</h2>
-    <form id="user-form" class="user-form" novalidate>
-      <div class="grid">
-        <label class="field">
-          <span>Benutzername</span>
-          <input name="username" type="text" maxlength="32" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="z. B. lisa">
-        </label>
-        <label class="field">
-          <span>Rolle</span>
-          <select name="role">
-            <option value="user">Mitarbeiter</option>
-            <option value="admin">Administrator</option>
-          </select>
-        </label>
-        <label class="field full">
-          <span>Startpasswort (min. 10 Zeichen)</span>
-          <input name="password" type="password" minlength="10" autocomplete="new-password">
-        </label>
-      </div>
-      <p class="form-error" id="user-error" role="alert" hidden></p>
-      <div class="section-actions">
-        <button class="btn primary" type="submit">Benutzer anlegen</button>
-      </div>
-    </form>
+    <div class="user-form-wrap" id="user-form-wrap" hidden>
+      <h2>Neuer Benutzer</h2>
+      <form id="user-form" class="user-form" novalidate>
+        <div class="grid">
+          <label class="field">
+            <span>Benutzername</span>
+            <input name="username" type="text" maxlength="32" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="z. B. lisa">
+          </label>
+          <label class="field">
+            <span>Rolle</span>
+            <select name="role">
+              <option value="user">Mitarbeiter</option>
+              <option value="admin">Administrator</option>
+            </select>
+          </label>
+          <label class="field full">
+            <span>Startpasswort (min. 10 Zeichen)</span>
+            <input name="password" type="password" minlength="10" autocomplete="new-password">
+          </label>
+        </div>
+        <p class="form-error" id="user-error" role="alert" hidden></p>
+        <div class="section-actions">
+          <button class="btn primary" type="submit">Benutzer anlegen</button>
+          <button class="btn ghost" type="button" id="btn-cancel-user">Abbrechen</button>
+        </div>
+      </form>
+    </div>
   </section>
 
   <!-- Protokoll (nur Admins) -->

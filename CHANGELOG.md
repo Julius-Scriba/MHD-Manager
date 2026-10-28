@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.6.1 — 2026-10-28
+
+Benutzer-Formular klappt erst auf Knopfdruck auf.
+
+**Geändert**
+- „Neuer Benutzer" ist ein Button neben der Überschrift; das Formular ist zugeklappt
+  und öffnet erst auf Klick (`aria-expanded`, Fokus auf Benutzername)
+- „Abbrechen" schließt und leert das Formular; nach erfolgreichem Anlegen klappt es
+  ebenfalls zu
+
 ## v0.6.0 — 2026-10-28
 
 Einstellungen sind jetzt eine eigene Seite statt eines Popups.

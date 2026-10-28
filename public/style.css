@@ -325,3 +325,13 @@ dialog.sheet h2 { margin: 0 0 14px; font-size: 17px; }
   .settings-main { padding: 14px 12px 48px; }
   .tab { padding: 8px 10px; font-size: 13px; }
 }
+
+/* ---------- Zugeklapptes Benutzer-Formular ---------- */
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.panel-head h2 { margin: 0; }
+.panel-head .btn svg { width: 15px; height: 15px; }
+.user-form-wrap { margin-top: 22px; }
+.user-form-wrap h2 { margin-top: 0; }
+@media (max-width: 520px) {
+  .panel-head { flex-wrap: wrap; }
+}
