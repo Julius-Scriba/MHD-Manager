@@ -136,21 +136,62 @@
 </dialog>
 
 <dialog id="settings-dialog" class="sheet">
-  <form id="settings-form" method="dialog" novalidate>
+  <div class="settings-body">
     <h2>Einstellungen</h2>
-    <label class="field full">
-      <span>Standard-Warnzeit in Tagen</span>
-      <input name="warn_days" type="number" min="0" max="365" step="1" required>
-    </label>
-    <p class="hint">Gilt nur, wenn weder Verkaufstempo noch manuelle Warnzeit greifen.</p>
-    <p class="hint" id="user-line"></p>
-    <menu class="sheet-actions">
-      <button class="btn ghost" type="button" id="btn-export">JSON-Export</button>
-      <button class="btn ghost" type="button" id="btn-logout">Abmelden</button>
+    <p class="sheet-sub" id="user-line"></p>
+
+    <section class="settings-section">
+      <h3>Warnungen</h3>
+      <form id="settings-form" novalidate>
+        <label class="field full">
+          <span>Standard-Warnzeit in Tagen</span>
+          <input name="warn_days" type="number" min="0" max="365" step="1" required>
+        </label>
+        <p class="hint">Gilt nur, wenn weder Verkaufstempo noch manuelle Warnzeit greifen.</p>
+        <p class="form-error" id="settings-error" role="alert" hidden></p>
+        <p class="form-ok" id="settings-ok" role="status" hidden></p>
+        <div class="section-actions">
+          <button class="btn primary small" type="submit">Speichern</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="settings-section">
+      <h3>Passwort ändern</h3>
+      <form id="password-form" novalidate>
+        <label class="field full">
+          <span>Aktuelles Passwort</span>
+          <input name="current" type="password" autocomplete="current-password" required>
+        </label>
+        <label class="field full">
+          <span>Neues Passwort</span>
+          <input name="next" type="password" autocomplete="new-password" minlength="10" required>
+        </label>
+        <label class="field full">
+          <span>Neues Passwort wiederholen</span>
+          <input name="confirm" type="password" autocomplete="new-password" minlength="10" required>
+        </label>
+        <p class="hint">Mindestens 10 Zeichen. Andere Sitzungen werden abgemeldet.</p>
+        <p class="form-error" id="password-error" role="alert" hidden></p>
+        <p class="form-ok" id="password-ok" role="status" hidden></p>
+        <div class="section-actions">
+          <button class="btn primary small" type="submit">Passwort ändern</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="settings-section">
+      <h3>Daten</h3>
+      <div class="section-actions spread">
+        <button class="btn ghost small" type="button" id="btn-export">JSON-Export</button>
+        <button class="btn ghost small" type="button" id="btn-logout">Abmelden</button>
+      </div>
+    </section>
+
+    <div class="settings-footer">
       <button class="btn ghost" type="button" data-close>Schließen</button>
-      <button class="btn primary" type="submit">Speichern</button>
-    </menu>
-  </form>
+    </div>
+  </div>
 </dialog>
 
 <datalist id="locations"></datalist>

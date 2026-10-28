@@ -412,20 +412,60 @@ $('#sort').addEventListener('change', (e) => { state.sort = e.target.value; rend
 /* ---------- Einstellungen ---------- */
 const settingsDialog = $('#settings-dialog');
 const settingsForm = $('#settings-form');
+const passwordForm = $('#password-form');
+
+const flash = (el, message, isError) => {
+  el.textContent = message;
+  el.hidden = false;
+  el.className = isError ? 'form-error' : 'form-ok';
+};
+const clearFlash = (...els) => { for (const el of els) { el.hidden = true; el.textContent = ''; } };
+
 $('#btn-settings').addEventListener('click', () => {
   settingsForm.warn_days.value = state.warnDays;
+  passwordForm.reset();
+  clearFlash($('#settings-error'), $('#settings-ok'), $('#password-error'), $('#password-ok'));
   $('#user-line').textContent = state.user ? `Angemeldet als ${state.user.username}` : '';
   settingsDialog.showModal();
 });
+
 settingsForm.addEventListener('submit', async (e) => {
   e.preventDefault();
+  clearFlash($('#settings-error'), $('#settings-ok'));
   try {
     const data = await api('/api/settings', { method: 'PUT', body: JSON.stringify({ warn_days: Number(settingsForm.warn_days.value) }) });
     state.warnDays = data.warn_days;
-    settingsDialog.close();
+    flash($('#settings-ok'), 'Gespeichert.', false);
     await load();
-  } catch (err) { alert(err.message); }
+  } catch (err) {
+    flash($('#settings-error'), err.message, true);
+  }
 });
+
+passwordForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearFlash($('#password-error'), $('#password-ok'));
+  const current = passwordForm.current.value;
+  const next = passwordForm.next.value;
+  const confirm = passwordForm.confirm.value;
+
+  if (next.length < 10) return flash($('#password-error'), 'Das neue Passwort braucht mindestens 10 Zeichen.', true);
+  if (next !== confirm) return flash($('#password-error'), 'Die beiden neuen Passwörter stimmen nicht überein.', true);
+  if (next === current) return flash($('#password-error'), 'Das neue Passwort muss sich vom alten unterscheiden.', true);
+
+  const btn = passwordForm.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  try {
+    await api('/api/password', { method: 'POST', body: JSON.stringify({ current, next }) });
+    passwordForm.reset();
+    flash($('#password-ok'), 'Passwort geändert. Andere Geräte wurden abgemeldet.', false);
+  } catch (err) {
+    flash($('#password-error'), err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 $('#btn-export').addEventListener('click', () => { window.location.href = '/api/export'; });
 $('#btn-logout').addEventListener('click', async () => {
   await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });

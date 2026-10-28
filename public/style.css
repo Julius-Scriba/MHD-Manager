@@ -211,3 +211,22 @@ dialog.sheet h2 { margin: 0 0 14px; font-size: 17px; }
 
 /* Lösch-Aktionen: erst beim Hover der Karte rot, damit nichts versehentlich passiert */
 .icon-btn.danger:hover { color: var(--expired); border-color: color-mix(in srgb, var(--expired) 50%, transparent); }
+
+/* ---------- Einstellungen (Abschnitte) ---------- */
+.settings-body { padding: 20px; }
+.settings-body h2 { margin: 0 0 4px; font-size: 17px; }
+.settings-section {
+  border-top: 1px solid var(--line); padding-top: 16px; margin-top: 16px;
+}
+.settings-section h3 {
+  font-size: 12.5px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); margin: 0 0 12px; font-weight: 650;
+}
+.settings-section .field + .field { margin-top: 10px; }
+.section-actions { display: flex; gap: 8px; margin-top: 14px; }
+.section-actions.spread { justify-content: space-between; }
+.settings-footer {
+  display: flex; justify-content: flex-end; margin-top: 20px;
+  padding-top: 16px; border-top: 1px solid var(--line);
+}
+.form-ok { color: var(--ok); font-size: 13px; margin: 10px 0 0; }

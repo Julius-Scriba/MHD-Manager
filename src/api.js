@@ -6,6 +6,7 @@ import {
   isValidDate, freezeDeadline, freezeStatus, frozenBestBefore, effectiveWarnDays, PACES,
 } from './validation.js';
 import { verifyPassword, newSessionToken, isValidSessionToken, LoginLimiter } from './auth.js';
+import { hashPassword } from './auth.js';
 
 const DEFAULT_WARN_DAYS = 7;
 const SESSION_COOKIE = 'mhd_session';
@@ -25,6 +26,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     user: db.prepare('SELECT * FROM users WHERE username = ? COLLATE NOCASE'),
     userById: db.prepare('SELECT * FROM users WHERE id = ?'),
     setLastLogin: db.prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?"),
+    updatePassword: db.prepare('UPDATE users SET password_hash = ? WHERE id = ?'),
     sessionInsert: db.prepare('INSERT INTO sessions (token, user_id, expires_at, user_agent) VALUES (?, ?, ?, ?)'),
     sessionGet: db.prepare('SELECT * FROM sessions WHERE token = ?'),
     sessionDelete: db.prepare('DELETE FROM sessions WHERE token = ?'),
@@ -421,6 +423,44 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
   /* Einstellungen & Export */
   api.get('/settings', (_req, res) => {
     res.json({ warn_days: defaultWarn(), paces: PACES });
+  });
+
+  /* Passwort ändern: verlangt das aktuelle Passwort, beendet alle anderen Sitzungen. */
+  api.post('/password', async (req, res) => {
+    const current = String(req.body?.current || '');
+    const next = String(req.body?.next || '');
+
+    if (!current || !next) {
+      return res.status(400).json({ errors: ['Aktuelles und neues Passwort erforderlich.'] });
+    }
+    if (next.length < 10) {
+      return res.status(400).json({ errors: ['Das neue Passwort braucht mindestens 10 Zeichen.'] });
+    }
+    if (next.length > 200) {
+      return res.status(400).json({ errors: ['Das neue Passwort ist zu lang (max. 200 Zeichen).'] });
+    }
+    if (next === current) {
+      return res.status(400).json({ errors: ['Das neue Passwort muss sich vom alten unterscheiden.'] });
+    }
+    if (!(await verifyPassword(current, req.auth.user.password_hash))) {
+      q.logEvent.run(null, null, 'password_change_failed', req.auth.user.username);
+      return res.status(403).json({ errors: ['Das aktuelle Passwort ist falsch.'] });
+    }
+
+    const hash = await hashPassword(next);
+    q.updatePassword.run(hash, req.auth.user.id);
+    // Alle Sitzungen des Benutzers beenden, dann die aktuelle neu ausstellen —
+    // so fliegt niemand mitten in der Arbeit raus, fremde Geräte aber schon.
+    q.sessionDeleteUser.run(req.auth.user.id);
+    const token = newSessionToken(sessionSecret);
+    q.sessionInsert.run(
+      token, req.auth.user.id, Date.now() + SESSION_TTL_MS,
+      String(req.headers['user-agent'] || '').slice(0, 200)
+    );
+    q.logEvent.run(null, null, 'password_changed', req.auth.user.username);
+
+    res.setHeader('Set-Cookie', cookieFor(token, Math.floor(SESSION_TTL_MS / 1000)));
+    res.json({ ok: true, other_sessions_ended: true });
   });
 
   api.put('/settings', (req, res) => {
