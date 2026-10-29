@@ -1011,6 +1011,20 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
   /* ---------- Statisches Frontend ---------- */
   app.use(express.static(publicDir, { extensions: ['html'] }));
 
+  // Seiten-Routen ohne Dateiendung (z. B. /manufacturers/12). Ohne das antwortet
+  // der Server mit 404, weil express.static nur echte Dateien kennt.
+  const pages = {
+    '/': 'index.html',
+    '/index': 'index.html',
+    '/settings': 'settings.html',
+    '/manufacturers': 'manufacturers.html',
+  };
+  for (const [route, file] of Object.entries(pages)) {
+    app.get(route, (_req, res) => res.sendFile(file, { root: publicDir }));
+  }
+  // Herstellerseite mit ID: der Browser lädt dieselbe Datei, JS liest die ID
+  app.get(/^\/manufacturers\/\d+$/, (_req, res) => res.sendFile('manufacturers.html', { root: publicDir }));
+
   app.use((err, _req, res, _next) => {
     console.error('[mhd] Fehler:', err.message);
     res.status(500).json({ error: 'Interner Fehler.' });
