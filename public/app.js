@@ -60,7 +60,7 @@ function visibleProducts() {
   const term = state.search.trim().toLowerCase();
   let list = state.products.filter((p) => {
     if (term) {
-      const hit = [p.name, p.category, p.location, p.notes].some((f) => String(f || '').toLowerCase().includes(term));
+      const hit = [p.name, p.category, p.location, p.manufacturer, p.notes].some((f) => String(f || '').toLowerCase().includes(term));
       if (!hit) return false;
     }
     if (state.filter === 'freeze') return p.batches.some((b) => b.quantity > 0 && (b.freeze_status === 'due' || b.freeze_status === 'missed'));
@@ -101,6 +101,12 @@ function render() {
   box.innerHTML = list.map(cardHtml).join('');
   $('#locations').innerHTML = [...new Set(state.products.map((p) => p.location).filter(Boolean))]
     .sort().map((v) => `<option value="${esc(v)}"></option>`).join('');
+  const makers = document.getElementById('manufacturer-list');
+  if (makers) {
+    makers.innerHTML = [...new Set(state.products.map((p) => p.manufacturer).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'de'))
+      .map((v) => `<option value="${esc(v)}"></option>`).join('');
+  }
 }
 
 function statusChip(b) {
@@ -125,6 +131,7 @@ function cardHtml(p) {
     p.next_best_before ? `nächstes MHD ${fmtDate(p.next_best_before)}` : '',
     p.location ? esc(p.location) : '',
     p.category ? esc(p.category) : '',
+    p.manufacturer ? esc(p.manufacturer) : '',
   ].filter(Boolean).join(' · ');
 
   const warnLine = p.warn_days_stock > p.warn_days_effective
@@ -332,6 +339,7 @@ function openProductDialog(product) {
     productForm.freeze_days.value = product.freeze_days ?? '';
     productForm.tk_days.value = product.tk_days ?? '';
     productForm.check_days.value = product.check_days ?? '';
+    productForm.manufacturer.value = product.manufacturer || '';
     productForm.notes.value = product.notes || '';
   }
   updatePaceHint();
@@ -353,6 +361,7 @@ productForm.addEventListener('submit', async (e) => {
     freeze_days: raw.freeze_days === '' ? null : raw.freeze_days,
     tk_days: raw.tk_days === '' ? null : raw.tk_days,
     check_days: raw.check_days === '' ? null : raw.check_days,
+    manufacturer: raw.manufacturer || '',
   };
   try {
     if (state.editProduct) await api(`/api/products/${state.editProduct.id}`, { method: 'PUT', body: JSON.stringify(payload) });

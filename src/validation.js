@@ -171,6 +171,7 @@ export function validateProduct(body = {}) {
       freeze_days,
       tk_days,
       check_days,
+      manufacturer: str(body.manufacturer, 80),
       notes: str(body.notes, 500),
     },
   };

@@ -63,6 +63,10 @@ function createV3(db) {
   // v3.5: Bestandsprüfung — eigenes Prüf-Intervall je Produkt und Zeitpunkt der
   // letzten Zählung je Charge. NULL heißt "noch nie geprüft".
   add('check_days', 'INTEGER');
+
+  // v3.6: Hersteller je Produkt (z. B. eigener Hof, Fremdbetrieb). Freitext,
+  // damit niemand erst eine Herstellerverwaltung anlegen muss.
+  add('manufacturer', "TEXT NOT NULL DEFAULT ''");
   const batchCols = db.prepare('PRAGMA table_info(batches)').all().map((c) => c.name);
   if (!batchCols.includes('checked_at')) {
     db.exec('ALTER TABLE batches ADD COLUMN checked_at TEXT');

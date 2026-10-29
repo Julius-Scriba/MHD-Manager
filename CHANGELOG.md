@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.9.1 — 2026-10-29
+
+Hersteller je Produkt.
+
+**Neu**
+- Feld „Hersteller" im Produkt-Dialog (Freitext, max. 80 Zeichen)
+- Vorschlagsliste aus bereits verwendeten Herstellern — kein doppeltes Eintippen
+- Hersteller erscheint in der Produktzeile unter Name/Menge/Ort/Kategorie
+- Suche findet Hersteller mit
+- Protokoll nennt Änderungen am Hersteller
+- JSON-Export enthält das Feld automatisch (`SELECT *`)
+
 ## v0.9.0 — 2026-10-29
 
 Kategorien nach Vorgabe, Warnzeit richtet sich jetzt nach der Absatzmenge.

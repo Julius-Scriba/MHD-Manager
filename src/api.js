@@ -54,10 +54,10 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     products: db.prepare('SELECT * FROM products WHERE archived = 0 ORDER BY name COLLATE NOCASE'),
     product: db.prepare('SELECT * FROM products WHERE id = ?'),
     insertProduct: db.prepare(`INSERT INTO products
-      (name, category, unit, location, warn_days, freeze_days, tk_days, pace, check_days, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+      (name, category, unit, location, warn_days, freeze_days, tk_days, pace, check_days, manufacturer, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
     updateProduct: db.prepare(`UPDATE products SET name=?, category=?, unit=?, location=?,
-      warn_days=?, freeze_days=?, tk_days=?, pace=?, check_days=?, notes=?, updated_at=datetime('now') WHERE id=?`),
+      warn_days=?, freeze_days=?, tk_days=?, pace=?, check_days=?, manufacturer=?, notes=?, updated_at=datetime('now') WHERE id=?`),
     markChecked: db.prepare("UPDATE batches SET checked_at = datetime('now') WHERE id = ?"),
     deleteProduct: db.prepare('DELETE FROM products WHERE id = ?'),
     batchesOf: db.prepare('SELECT * FROM batches WHERE product_id = ? ORDER BY best_before ASC, id ASC'),
@@ -312,7 +312,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     const labels = {
       name: 'Name', category: 'Kategorie', unit: 'Einheit', location: 'Ort',
       warn_days: 'Warnzeit', freeze_days: 'Einfrieren', tk_days: 'TK-Tage',
-      pace: 'Tempo', notes: 'Notiz',
+      pace: 'Tempo', check_days: 'Prüfintervall', manufacturer: 'Hersteller', notes: 'Notiz',
     };
     const changed = [];
     for (const [key, label] of Object.entries(labels)) {
@@ -447,7 +447,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     if (!ok) return res.status(400).json({ errors });
     const info = q.insertProduct.run(
       value.name, value.category, value.unit, value.location,
-      value.warn_days, value.freeze_days, value.tk_days, value.pace, value.check_days, value.notes
+      value.warn_days, value.freeze_days, value.tk_days, value.pace, value.check_days, value.manufacturer, value.notes
     );
     const id = Number(info.lastInsertRowid);
     ql('product_created', { req, productId: id, entityName: value.name, detail: `${value.category || 'ohne Kategorie'} · ${value.unit}` });
@@ -462,7 +462,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     if (!ok) return res.status(400).json({ errors });
     q.updateProduct.run(
       value.name, value.category, value.unit, value.location,
-      value.warn_days, value.freeze_days, value.tk_days, value.pace, value.check_days, value.notes, id
+      value.warn_days, value.freeze_days, value.tk_days, value.pace, value.check_days, value.manufacturer, value.notes, id
     );
     ql('product_updated', { req, productId: id, entityName: value.name, detail: describeProductChange(before, value) });
     res.json(loadProduct(id, todayUTC()));

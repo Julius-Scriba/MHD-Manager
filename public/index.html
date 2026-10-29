@@ -35,7 +35,7 @@
   <section class="toolbar">
     <div class="search">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-      <input id="search" type="search" placeholder="Produkt, Kategorie, Ort …" autocomplete="off" aria-label="Suchen">
+      <input id="search" type="search" placeholder="Produkt, Kategorie, Ort, Hersteller …" autocomplete="off" aria-label="Suchen">
     </div>
     <select id="filter" aria-label="Nach Status filtern">
       <option value="">Alle</option>
@@ -116,6 +116,11 @@
       <label class="field full">
         <span>TK-Haltbarkeit in Tagen (ab Einfrieren)</span>
         <input name="tk_days" type="number" min="1" max="3650" step="1" inputmode="numeric" placeholder="z. B. 90">
+      </label>
+      <label class="field full">
+        <span>Hersteller</span>
+        <input name="manufacturer" type="text" maxlength="80" placeholder="z. B. eigener Hof, Hof Müller" list="manufacturer-list">
+        <datalist id="manufacturer-list"></datalist>
       </label>
       <label class="field full">
         <span>Notiz</span>
