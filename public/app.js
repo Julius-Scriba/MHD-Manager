@@ -127,7 +127,10 @@ function cardHtml(p) {
     p.category ? esc(p.category) : '',
   ].filter(Boolean).join(' · ');
 
-  const rules = [`Warnzeit ${p.warn_days_effective} T.`];
+  const warnLine = p.warn_days_stock > p.warn_days_effective
+    ? `Warnzeit ${p.warn_days_effective} T. · bei ${fmtQty(p.total_quantity)} ${esc(p.unit)} Bestand ${p.warn_days_stock} T.`
+    : `Warnzeit ${p.warn_days_effective} T.`;
+  const rules = [warnLine];
   if (p.freeze_days !== null) rules.push(`einfrieren ${p.freeze_days} T. vor Frisch-MHD`);
   if (p.tk_days) rules.push(`TK ${p.tk_days} T.`);
 

@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.9.0 — 2026-10-29
+
+Kategorien nach Vorgabe, Warnzeit richtet sich jetzt nach der Absatzmenge.
+
+**Neu**
+- Zwölf Kategorien: Fleisch & Wurst, Obst & Gemüse, Feinkost & Spezialitäten,
+  Milchprodukte & Eier, Brot & Backwaren, Konserven & Eingemachtes,
+  Honig/Marmelade & Süßes, Öle/Essig & Gewürze, Getränke, Nudeln/Reis & Getreide,
+  Tiefkühlprodukte, Geschenke & Sonstiges
+- `warnDaysForStock()`: Warnzeit ist mindestens so lang, wie der Abverkauf des
+  vorhandenen Bestands dauert (Tempo × Menge), gedeckelt auf 60 Tage
+- Produktkarte zeigt beide Werte, wenn sie abweichen:
+  „Warnzeit 1 T. · bei 48 Pkg Bestand 48 T."
+
+**Geändert**
+- „Fleisch" → „Fleisch & Wurst", „Feinkosten & Spezialitäten" → „Feinkost & Spezialitäten"
+  (Produkte umgehängt, alte Kategorien entfernt)
+- Frischfleisch auf Verkaufstempo „schnell"
+
+**Beispiel**
+- Wildbouletten, 48 Pkg, MHD in 19 Tagen → Status „bald fällig" statt „haltbar"
+
 ## v0.8.0 — 2026-10-28
 
 Bestandsprüfung: zählen statt raten, mit drei Zuständen und eigenem Prüfrhythmus.

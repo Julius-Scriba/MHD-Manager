@@ -3,7 +3,7 @@ import express from 'express';
 import { openDb } from './db.js';
 import {
   validateProduct, validateBatch, validateCategoryName, daysUntil, statusOf, todayUTC,
-  isValidDate, freezeDeadline, freezeStatus, frozenBestBefore, effectiveWarnDays, PACES, checkIntervalDays,
+  isValidDate, freezeDeadline, freezeStatus, frozenBestBefore, effectiveWarnDays, PACES, checkIntervalDays, warnDaysForStock,
 } from './validation.js';
 import { verifyPassword, newSessionToken, isValidSessionToken, LoginLimiter } from './auth.js';
 import { hashPassword } from './auth.js';
@@ -97,8 +97,10 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
   };
 
   /* ---------- Statusberechnung ---------- */
-  function decorateBatch(batch, product, today) {
+  function decorateBatch(batch, product, today, stock = null) {
     const warn = effectiveWarnDays(product, defaultWarn());
+    // Warnzeit wächst mit dem Bestand: 48 Päckchen sind nicht in 2 Tagen verkauft.
+    const warnWithStock = stock === null ? warn : warnDaysForStock(product, stock, warn);
     const days = daysUntil(batch.best_before, today);
     const deadline = freezeDeadline(batch.best_before, product.freeze_days);
     const tkMhd = frozenBestBefore(batch.frozen_on, product.tk_days);
@@ -115,9 +117,11 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     return {
       ...batch,
       days_left: days,
-      status: statusOf(days, warn),
-      post_freeze_status: tkMhd ? statusOf(relevantDays, warn) : null,
+      status: statusOf(days, warnWithStock),
+      post_freeze_status: tkMhd ? statusOf(relevantDays, warnWithStock) : null,
       warn_days: warn,
+      warn_days_base: warn,
+      warn_days_stock: warnWithStock,
       freeze_deadline: deadline,
       freeze_days_left: deadline ? daysUntil(deadline, today) : null,
       freeze_status: fStatus,
@@ -133,7 +137,10 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
   }
 
   function decorateProduct(product, batches, today) {
-    const decorated = batches.map((b) => decorateBatch(b, product, today));
+    // Der gesamte Bestand des Produkts bestimmt, wie lange der Abverkauf dauert —
+    // deshalb erst die Menge kennen, dann jede Charge bewerten.
+    const stock = batches.reduce((sum, b) => sum + (b.quantity > 0 ? b.quantity : 0), 0);
+    const decorated = batches.map((b) => decorateBatch(b, product, today, stock));
     const active = decorated.filter((b) => b.quantity > 0);
     const rank = { expired: 0, urgent: 1, due: 2, soon: 3, ok: 4, unknown: 5 };
     const statusKey = (b) => {
@@ -148,6 +155,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     return {
       ...product,
       warn_days_effective: effectiveWarnDays(product, defaultWarn()),
+      warn_days_stock: warnDaysForStock(product, stock, effectiveWarnDays(product, defaultWarn())),
       batches: decorated,
       active_batches: active.length,
       total_quantity: active.reduce((s, b) => s + b.quantity, 0),
@@ -161,7 +169,8 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     const row = q.batch.get(id);
     if (!row) return null;
     const product = q.product.get(row.product_id);
-    return decorateBatch(row, product || {}, todayUTC());
+    const stock = q.batchesOf.all(row.product_id).reduce((sum, b) => sum + (b.quantity > 0 ? b.quantity : 0), 0);
+    return decorateBatch(row, product || {}, todayUTC(), stock);
   };
 
   const loadProduct = (id, today) => {

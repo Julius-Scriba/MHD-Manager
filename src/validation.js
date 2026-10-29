@@ -19,6 +19,29 @@ export function checkIntervalDays(product, fallback = 14) {
 /** Warnzeit-Vorschlag je Verkaufstempo (Tage vor MHD). Manueller Wert überschreibt. */
 export const PACE_WARN_DAYS = { schnell: 1, mittel: 3, langsam: 14 };
 
+/**
+ * Warnzeit nach Absatzmenge: Wie viele Tage braucht man, um die vorhandene Menge
+ * loszuwerden? Tempo allein reicht nicht — 48 Päckchen gehen nicht in 48 Stunden
+ * weg, auch wenn es "schnell" verkaufte Ware ist.
+ *
+ * Gezählt wird in Stück je Tag. Ein Tempo von "schnell" heißt hier 1 Stück/Tag,
+ * "mittel" 1 Stück je 2 Tage, "langsam" 1 Stück je 7 Tage — also die Kehrwerte
+ * der Vorschlagstage. Bei 21 Stück und mittlerem Tempo läuft das 42 Tage.
+ */
+export const PACE_UNITS_PER_DAY = { schnell: 1, mittel: 0.5, langsam: 1 / 7 };
+
+/**
+ * Effektive Warnzeit = Maximum aus manuell/aus Tempo gesetzter Warnzeit und
+ * der Absatzdauer des Bestands. Gedeckelt, damit ein großer Bestand nicht
+ * Monate im Voraus "bald fällig" meldet.
+ */
+export function warnDaysForStock(product, stock, warnedByPace, cap = 60) {
+  const perDay = PACE_UNITS_PER_DAY[product.pace] ?? 0.5;
+  if (!Number.isFinite(stock) || stock <= 0) return warnedByPace;
+  const daysToSellOut = Math.ceil(stock / perDay);
+  return Math.min(cap, Math.max(warnedByPace, daysToSellOut));
+}
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function isValidDate(value) {
