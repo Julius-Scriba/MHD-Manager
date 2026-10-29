@@ -3,6 +3,7 @@ import express from 'express';
 import { openDb } from './db.js';
 import {
   validateProduct, validateBatch, validateCategoryName, validateManufacturer, daysUntil, statusOf, todayUTC,
+  CATEGORIES, categorySchema, LOCATIONS,
   isValidDate, freezeDeadline, freezeStatus, frozenBestBefore, effectiveWarnDays, PACES, checkIntervalDays, warnDaysForStock,
 } from './validation.js';
 import { verifyPassword, newSessionToken, isValidSessionToken, LoginLimiter } from './auth.js';
@@ -140,12 +141,27 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
       freeze_status: fStatus,
       tk_best_before: tkMhd,
       tk_days_left: tkMhd ? relevantDays : null,
-      // Bestandsprüfung: wie lange ist die Zählung her, wann ist sie fällig?
-      check_days: checkIntervalDays(product, 14),
-      checked_at: batch.checked_at || null,
-      check_days_ago: batch.checked_at ? Math.max(0, -daysUntil(String(batch.checked_at).slice(0, 10), today)) : null,
-      check_due: !batch.checked_at
-        || -daysUntil(String(batch.checked_at).slice(0, 10), today) > checkIntervalDays(product, 14),
+      // Bestandsprüfung: Grundlage ist die letzte Zählung — oder, wenn nie gezählt
+      // wurde, das Anlegen der Charge. Eine gestern erfasste Charge ist nicht
+      // überfällig, nur weil noch niemand gezählt hat.
+      ...(() => {
+        const interval = checkIntervalDays(product, 14);
+        const anchor = batch.checked_at
+          ? String(batch.checked_at).slice(0, 10)
+          : String(batch.created_at || '').slice(0, 10);
+        const anchorDays = anchor ? daysUntil(anchor, today) : null;
+        const never = !batch.checked_at;
+        // Ein kleiner Startpuffer: am Tag des Anlegens ist nichts zu prüfen.
+        const grace = never ? 1 : 0;
+        return {
+          check_days: interval,
+          checked_at: batch.checked_at || null,
+          check_never: never,
+          check_anchor: anchor || null,
+          check_days_ago: anchorDays === null ? null : Math.max(0, -anchorDays),
+          check_due: anchorDays === null ? false : (-anchorDays - grace) >= interval,
+        };
+      })(),
     };
   }
 
@@ -451,6 +467,17 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     });
   });
 
+  /** Kategorie muss aus der festen Liste kommen, Ort darf Freitext sein. */
+  const checkCategoryAndLocation = (body) => {
+    const category = String(body?.category || '').trim();
+    if (category && !CATEGORIES.includes(category)) {
+      return `Unbekannte Kategorie „${category}". Gültig: ${CATEGORIES.join(', ')}.`;
+    }
+    const location = String(body?.location || '').trim();
+    if (location.length > 60) return 'Ort darf höchstens 60 Zeichen haben.';
+    return null;
+  };
+
   /** Hersteller aus dem Formular: ID bevorzugt, Name als Rückfallebene (Altdaten). */
   const resolveManufacturerId = (body) => {
     const rawId = body?.manufacturer_id;
@@ -473,6 +500,12 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
   api.post('/products', (req, res) => {
     const { ok, errors, value } = validateProduct(req.body);
     if (!ok) return res.status(400).json({ errors });
+    const schemaErr = checkCategoryAndLocation(req.body);
+    if (schemaErr) return res.status(400).json({ errors: [schemaErr] });
+    // Felder, die die Kategorie nicht kennt, werden nicht gespeichert —
+    // sonst schleppen Produkte Fleisch-Eigenschaften mit, die nie gelten.
+    const cat = categorySchema(req.body.category);
+    if (!cat.freezeable) { value.freeze_days = null; value.tk_days = null; }
     const info = q.insertProduct.run(
       value.name, value.category, value.unit, value.location,
       value.warn_days, value.freeze_days, value.tk_days, value.pace, value.check_days, value.manufacturer, value.notes
@@ -490,6 +523,10 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     if (!before) return res.status(404).json({ error: 'Produkt nicht gefunden.' });
     const { ok, errors, value } = validateProduct(req.body);
     if (!ok) return res.status(400).json({ errors });
+    const schemaErr = checkCategoryAndLocation(req.body);
+    if (schemaErr) return res.status(400).json({ errors: [schemaErr] });
+    const cat = categorySchema(req.body.category);
+    if (!cat.freezeable) { value.freeze_days = null; value.tk_days = null; }
     q.updateProduct.run(
       value.name, value.category, value.unit, value.location,
       value.warn_days, value.freeze_days, value.tk_days, value.pace, value.check_days, value.manufacturer, value.notes, id
@@ -704,42 +741,33 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     res.status(204).end();
   });
 
-  /* Kategorien */
+  /* Kategorien — fest im Code. Die API liefert nur, was der Code kennt, und
+     legt beim Start fehlende Einträge an. Anlegen über HTTP ist bewusst gesperrt. */
+  const syncCategories = () => {
+    const known = new Set(q.categories.all().map((c) => c.name));
+    let sort = q.categories.all().reduce((m, c) => Math.max(m, c.sort), 0);
+    for (const name of CATEGORIES) {
+      if (known.has(name)) continue;
+      sort += 10;
+      q.insertCategory.run(name, sort);
+    }
+  };
+  syncCategories();
+
   api.get('/categories', (_req, res) => {
-    res.json({ categories: q.categories.all() });
+    const rows = q.categories.all();
+    const byName = new Map(rows.map((c) => [c.name, c]));
+    const categories = CATEGORIES.map((name) => {
+      const row = byName.get(name);
+      return { id: row ? row.id : null, name, active: 1, schema: categorySchema(name) };
+    });
+    res.json({ categories, locations: LOCATIONS });
   });
 
-  api.post('/categories', (req, res) => {
-    const check = validateCategoryName(req.body?.name);
-    if (!check.ok) return res.status(400).json({ errors: [check.error] });
-    const existing = q.categoryByName.get(check.value);
-    if (existing) {
-      if (!existing.active) {
-        q.reactivateCategory.run(existing.id);
-        return res.status(201).json({ ...existing, active: 1 });
-      }
-      return res.status(409).json({ errors: ['Diese Kategorie gibt es schon.'] });
-    }
-    const maxSort = q.categories.all().reduce((m, c) => Math.max(m, c.sort), 0);
-    const info = q.insertCategory.run(check.value, maxSort + 10);
-    ql('category_created', { req, entity: 'category', entityName: check.value });
-    res.status(201).json({ id: Number(info.lastInsertRowid), name: check.value, active: 1 });
-  });
-
-  api.delete('/categories/:id', (req, res) => {
-    const id = Number(req.params.id);
-    const cat = q.categories.all().find((c) => c.id === id);
-    if (!cat) return res.status(404).json({ error: 'Kategorie nicht gefunden.' });
-    const used = q.countByCategory.get(cat.name).n;
-    if (used > 0) {
-      // Nicht hart löschen: bestehende Produkte würden ihren Kategorienamen verlieren
-      q.deactivateCategory.run(id);
-      ql('category_deleted', { req, entity: 'category', entityName: cat.name, detail: `deaktiviert (noch ${used} Produkt(e))` });
-      return res.json({ id, active: 0, in_use: used, note: `Kategorie bleibt für ${used} Produkt(e) erhalten.` });
-    }
-    q.deleteCategory.run(id);
-    ql('category_deleted', { req, entity: 'category', entityName: cat.name, detail: 'gelöscht' });
-    res.status(204).end();
+  api.post('/categories', (_req, res) => {
+    res.status(405).json({
+      error: 'Kategorien sind fest. Neue Kategorien werden im Code ergänzt, damit Kategorie und Felder zusammenpassen.',
+    });
   });
 
   /* Einstellungen & Export */

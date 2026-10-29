@@ -1,6 +1,6 @@
 {
   "name": "mhd-manager",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "private": true,
   "description": "MHD Manager - Mindesthaltbarkeitsdaten im Hofladen: Produkte, Chargen, Einfrier-Fristen",
   "type": "module",

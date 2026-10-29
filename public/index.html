@@ -89,16 +89,21 @@
         <input name="name" type="text" maxlength="120" required autocomplete="off" placeholder="z. B. Rinderhackfleisch">
       </label>
       <label class="field full">
-        <span>Kategorie</span>
-        <select name="category" id="category-select"></select>
+        <span>Kategorie *</span>
+        <select name="category" id="category-select" required></select>
+        <small class="field-note" id="category-note">Bestimmt, welche Felder das Produkt hat.</small>
       </label>
       <label class="field">
-        <span>Ort</span>
-        <input name="location" type="text" maxlength="60" list="locations" autocomplete="off" placeholder="z. B. Kühlregal">
+        <span>Ort im Lager</span>
+        <select name="location" id="location-select"></select>
       </label>
       <label class="field">
         <span>Einheit</span>
         <select name="unit" id="unit-select"></select>
+      </label>
+      <label class="field full" id="new-location-wrap" hidden>
+        <span>Neuer Ort</span>
+        <input name="new_location" type="text" maxlength="60" autocomplete="off" placeholder="z. B. Mittelsäule">
       </label>
       <label class="field full">
         <span>Verkaufstempo</span>
@@ -110,14 +115,15 @@
         <input name="warn_days" type="number" min="0" max="365" step="1" inputmode="numeric" placeholder="aus Tempo">
       </label>
       <label class="field">
-        <span>Einfrieren: Tage vor Frisch-MHD</span>
-        <input name="freeze_days" type="number" min="0" max="60" step="1" inputmode="numeric" placeholder="leer = kein Einfrieren">
-      </label>
-      <label class="field">
         <span>Bestand prüfen alle (Tage)</span>
         <input name="check_days" type="number" min="1" max="365" step="1" inputmode="numeric" placeholder="aus Tempo">
       </label>
-      <label class="field full">
+      <!-- Nur bei einfrierbaren Kategorien sichtbar -->
+      <label class="field" id="freeze-wrap" hidden>
+        <span>Einfrieren: Tage vor Frisch-MHD</span>
+        <input name="freeze_days" type="number" min="0" max="60" step="1" inputmode="numeric" placeholder="leer = kein Einfrieren">
+      </label>
+      <label class="field full" id="tk-wrap" hidden>
         <span>TK-Haltbarkeit in Tagen (ab Einfrieren)</span>
         <input name="tk_days" type="number" min="1" max="3650" step="1" inputmode="numeric" placeholder="z. B. 90">
       </label>
@@ -169,7 +175,7 @@
   </form>
 </dialog>
 
-<datalist id="locations"></datalist>
+
 
 <script src="/app.js"></script>
 </body>

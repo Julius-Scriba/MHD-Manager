@@ -7,10 +7,9 @@ const PACES = [
   ['mittel', 'Mittel (Warnung 3 Tage vorher)'],
   ['langsam', 'Langsam (Warnung 14 Tage vorher)'],
 ];
-const NEW_CATEGORY = '__new__';
 
 const state = {
-  products: [], categories: [], manufacturers: [], counts: {}, today: '', warnDays: 7, user: null,
+  products: [], categories: [], locations: [], manufacturers: [], counts: {}, today: '', warnDays: 7, user: null,
   search: '', filter: '', sort: 'mhd', open: new Set(),
   editProduct: null, editBatch: null, batchParent: null,
 };
@@ -44,6 +43,7 @@ async function load() {
     ]);
     state.user = me.user;
     state.categories = cats.categories;
+    state.locations = cats.locations || [];
     state.manufacturers = makers.manufacturers;
     const data = await api('/api/overview');
     state.products = data.products;
@@ -102,8 +102,6 @@ function render() {
   }
   empty.hidden = true;
   box.innerHTML = list.map(cardHtml).join('');
-  $('#locations').innerHTML = [...new Set(state.products.map((p) => p.location).filter(Boolean))]
-    .sort().map((v) => `<option value="${esc(v)}"></option>`).join('');
   const makers = document.getElementById('manufacturer-list');
   if (makers) {
     makers.innerHTML = state.manufacturers
@@ -294,37 +292,73 @@ $('#check-empty').addEventListener('click', async (e) => {
   }
 });
 
-/* ---------- Kategorien im Dropdown ---------- */
+/* ---------- Kategorien und Orte ---------- */
+const NEW_LOCATION = '__new_location__';
+
+/** Kategorie bestimmt die Felder — Einfrieren/TK nur, wo es sinnvoll ist. */
+function currentCategorySchema() {
+  const name = $('#category-select').value;
+  const hit = state.categories.find((c) => c.name === name);
+  return (hit && hit.schema) || { freezeable: false, warnDays: 7, pace: 'mittel' };
+}
+
+function applyCategorySchema({ presetDefaults } = {}) {
+  const schema = currentCategorySchema();
+  $('#freeze-wrap').hidden = !schema.freezeable;
+  $('#tk-wrap').hidden = !schema.freezeable;
+  if (!schema.freezeable) {
+    // Werte leeren, sonst schickt das Formular Fleisch-Eigenschaften mit
+    productForm.freeze_days.value = '';
+    productForm.tk_days.value = '';
+  }
+  $('#category-note').textContent = schema.freezeable
+    ? 'Diese Kategorie kann eingefroren werden — Einfrier-Vorlauf und TK-Haltbarkeit sind möglich.'
+    : 'Diese Kategorie wird nicht eingefroren — keine TK-Felder.';
+  if (presetDefaults) {
+    $('#pace-select').value = schema.pace || 'mittel';
+    productForm.warn_days.value = '';
+    updatePaceHint();
+  }
+}
+
 function fillCategorySelect(selected) {
   const sel = $('#category-select');
-  const opts = ['<option value="">— keine —</option>'];
-  for (const c of state.categories) {
-    if (!c.active) continue;
-    opts.push(`<option value="${esc(c.name)}">${esc(c.name)}</option>`);
-  }
-  opts.push(`<option value="${NEW_CATEGORY}">+ Neue Kategorie …</option>`);
-  sel.innerHTML = opts.join('');
-
-  const known = state.categories.some((c) => c.name.toLowerCase() === String(selected || '').toLowerCase());
-  if (selected && !known) {
-    // Altbestand: Kategorie existiert nicht in der Liste → als Eintrag ergänzen
+  sel.innerHTML = ['<option value="">— wählen —</option>']
+    .concat(state.categories.map((c) => `<option value="${esc(c.name)}">${esc(c.name)}</option>`))
+    .join('');
+  if (selected && !state.categories.some((c) => c.name === selected)) {
     sel.insertAdjacentHTML('beforeend', `<option value="${esc(selected)}">${esc(selected)}</option>`);
   }
   sel.value = selected || '';
 }
 
-$('#category-select').addEventListener('change', (e) => {
-  if (e.target.value !== NEW_CATEGORY) return;
-  e.target.value = '';
-  const name = prompt('Name der neuen Kategorie:');
-  if (!name || !name.trim()) return;
-  api('/api/categories', { method: 'POST', body: JSON.stringify({ name: name.trim() }) })
-    .then(async (created) => {
-      state.categories.push(created);
-      await load();
-      fillCategorySelect(created.name);
-    })
-    .catch((err) => alert(err.message));
+$('#category-select').addEventListener('change', () => {
+  applyCategorySchema({ presetDefaults: !state.editProduct });
+});
+
+/** Orte: feste Liste aus dem Server plus alles, was schon in Produkten steht. */
+function fillLocationSelect(selected) {
+  const sel = $('#location-select');
+  const known = new Set(state.locations || []);
+  for (const p of state.products) if (p.location) known.add(p.location);
+  const opts = ['<option value="">— keiner —</option>'];
+  for (const l of [...known].sort((a, b) => a.localeCompare(b, 'de'))) {
+    opts.push(`<option value="${esc(l)}">${esc(l)}</option>`);
+  }
+  opts.push(`<option value="${NEW_LOCATION}">+ Neuer Ort …</option>`);
+  sel.innerHTML = opts.join('');
+  if (selected && !known.has(selected)) {
+    sel.insertAdjacentHTML('beforeend', `<option value="${esc(selected)}">${esc(selected)}</option>`);
+  }
+  sel.value = selected || '';
+  $('#new-location-wrap').hidden = true;
+  productForm.new_location.value = '';
+}
+
+$('#location-select').addEventListener('change', (e) => {
+  const isNew = e.target.value === NEW_LOCATION;
+  $('#new-location-wrap').hidden = !isNew;
+  if (isNew) setTimeout(() => productForm.new_location.focus(), 20);
 });
 
 /* ---------- Produkt-Dialog ---------- */
@@ -349,9 +383,9 @@ function openProductDialog(product) {
   $('#unit-select').value = 'kg';
   $('#pace-select').value = 'mittel';
   fillCategorySelect(product?.category || '');
+  fillLocationSelect(product?.location || '');
   if (product) {
     productForm.name.value = product.name;
-    productForm.location.value = product.location || '';
     $('#unit-select').value = product.unit;
     $('#pace-select').value = product.pace || 'mittel';
     productForm.warn_days.value = product.warn_days ?? '';
@@ -365,6 +399,9 @@ function openProductDialog(product) {
     productForm.manufacturer.value = maker ? maker.name : (product.manufacturer || '');
     productForm.notes.value = product.notes || '';
   }
+  // Schema nach dem Setzen der Werte anwenden: blendet TK-Felder ein, ohne
+  // gespeicherte Werte zu leeren.
+  applyCategorySchema();
   updatePaceHint();
   productDialog.showModal();
   if (!product) setTimeout(() => productForm.name.focus(), 30);
@@ -375,8 +412,8 @@ productForm.addEventListener('submit', async (e) => {
   const raw = Object.fromEntries(new FormData(productForm).entries());
   const payload = {
     name: raw.name,
-    category: raw.category === NEW_CATEGORY ? '' : raw.category,
-    location: raw.location,
+    category: raw.category,
+    location: raw.location === NEW_LOCATION ? String(raw.new_location || '').trim() : raw.location,
     unit: raw.unit,
     pace: raw.pace,
     notes: raw.notes,

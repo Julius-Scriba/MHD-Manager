@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.12.0 — 2026-10-29
+
+Kategorien fest, Orte als Dropdown, Prüf-Status korrigiert.
+
+**Behoben**
+- `/manufacturers/<id>` lief ins 404: `express.static` kennt nur echte Dateien,
+  jetzt liefert der Server die Seiten-Routen selbst aus
+- „prüfen" stand bei allen Produkten: nie gezählt galt als überfällig. Jetzt ist
+  das Anlegen der Startpunkt, ein Tag Karenz — neue Chargen sind nicht sofort fällig
+- Topbar-Leiste lief auf schmalen Geräten über den Text; auf Mobil nur noch Icons
+
+**Neu**
+- Kategorien fest im Code (14): Fleisch & Wurst, Obst & Gemüse, Feinkost & Spezialitäten,
+  Milchprodukte & Eier, Brot & Backwaren, Konserven & Eingemachtes,
+  Honig/Marmelade/Süßes, Öle/Essig/Gewürze, Getränke, Nudeln/Reis/Getreide,
+  Tiefkühlprodukte, Eis, Snacks & Süßwaren, Geschenke & Sonstiges
+- `CATEGORY_SCHEMA`: Einfrieren und TK-Haltbarkeit erscheinen nur bei Kategorien,
+  die eingefroren werden können; Wertetrennung auch serverseitig
+- Ort als Dropdown mit 12 Lagerorten plus „+ Neuer Ort …" im Formular
+- `POST /api/categories` gesperrt (405): Erweiterung nur im Code, damit die
+  Felder passen
+
 ## v0.11.0 — 2026-10-29
 
 Hersteller als eigene Seiten, App heißt jetzt Product Manager.

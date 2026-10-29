@@ -1,5 +1,72 @@
 // mhd-manager · Validierung + Statuslogik (ohne DB, testbar)
 export const UNITS = ['kg', 'g', 'Stk', 'Pkg', 'l', 'ml', 'Dose', 'Flasche'];
+/**
+ * Kategorien sind fix. Die Kategorie bestimmt, welche Felder ein Produkt hat —
+ * deshalb darf sie nicht frei erweiterbar sein, sonst fällt jedes neue Produkt
+ * aus seinem Schema. Erweiterung = Codeänderung, bewusst so.
+ */
+export const CATEGORIES = [
+  'Fleisch & Wurst',
+  'Obst & Gemüse',
+  'Feinkost & Spezialitäten',
+  'Milchprodukte & Eier',
+  'Brot & Backwaren',
+  'Konserven & Eingemachtes',
+  'Honig, Marmelade & Süßes',
+  'Öle, Essig & Gewürze',
+  'Getränke',
+  'Nudeln, Reis & Getreide',
+  'Tiefkühlprodukte',
+  'Eis',
+  'Snacks & Süßwaren',
+  'Geschenke & Sonstiges',
+];
+
+/**
+ * Welches Formular zeigt die Kategorie? `freezeable` steuert die Felder
+ * Einfrieren und TK-Haltbarkeit — ohne die Eigenschaft erscheinen sie nicht.
+ */
+export const CATEGORY_SCHEMA = {
+  'Fleisch & Wurst':          { freezeable: true,  warnDays: 1,  pace: 'schnell' },
+  'Obst & Gemüse':            { freezeable: true,  warnDays: 3,  pace: 'mittel' },
+  'Feinkost & Spezialitäten': { freezeable: false, warnDays: 7,  pace: 'mittel' },
+  'Milchprodukte & Eier':     { freezeable: false, warnDays: 3,  pace: 'mittel' },
+  'Brot & Backwaren':         { freezeable: true,  warnDays: 1,  pace: 'schnell' },
+  'Konserven & Eingemachtes': { freezeable: false, warnDays: 30, pace: 'langsam' },
+  'Honig, Marmelade & Süßes': { freezeable: false, warnDays: 30, pace: 'langsam' },
+  'Öle, Essig & Gewürze':     { freezeable: false, warnDays: 30, pace: 'langsam' },
+  'Getränke':                 { freezeable: false, warnDays: 14, pace: 'langsam' },
+  'Nudeln, Reis & Getreide':  { freezeable: false, warnDays: 30, pace: 'langsam' },
+  'Tiefkühlprodukte':         { freezeable: false, warnDays: 14, pace: 'mittel', alwaysFrozen: true },
+  'Eis':                      { freezeable: false, warnDays: 14, pace: 'mittel', alwaysFrozen: true },
+  'Snacks & Süßwaren':        { freezeable: false, warnDays: 14, pace: 'langsam' },
+  'Geschenke & Sonstiges':    { freezeable: false, warnDays: 14, pace: 'langsam' },
+};
+
+/** Ist die Kategorie bekannt und einfrierbar? */
+export function categorySchema(name) {
+  return CATEGORY_SCHEMA[name] || { freezeable: false, warnDays: 7, pace: 'mittel' };
+}
+
+/**
+ * Orte im Lager. Feste Liste plus Freitext: ein neuer Ort wird einmal eingetragen
+ * und steht danach im Dropdown. Kein Tippen von Hand, keine Schreibvarianten.
+ */
+export const LOCATIONS = [
+  'Fleischkühlschrank',
+  'Zweiter Kühlschrank',
+  'Käsekühlschrank',
+  'Eisschrank',
+  'Rundtisch',
+  'Mittelsäule',
+  'Regal 1',
+  'Regal 2',
+  'Regal 3',
+  'Regal 4',
+  'Trockenlager',
+  'Theke',
+];
+
 export const PACES = ['schnell', 'mittel', 'langsam'];
 
 /**
