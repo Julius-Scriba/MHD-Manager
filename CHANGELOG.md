@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.12.1 — 2026-10-29
+
+Doppelte Kopfzeile auf /manufacturers und /manufacturers/<id> behoben.
+
+**Ursache**
+`.topbar { display: flex }` schlägt das hidden-Attribut: das Browser-Stylesheet
+setzt `[hidden] { display: none }`, aber jede eigene `display`-Regel gewinnt.
+Beide Header standen deshalb gleichzeitig da.
+
+**Fix**
+`[hidden] { display: none !important; }` global — wirkt auch für die Panels
+und alle künftigen Bereiche, die per hidden geschaltet werden.
+
 ## v0.12.0 — 2026-10-29
 
 Kategorien fest, Orte als Dropdown, Prüf-Status korrigiert.
