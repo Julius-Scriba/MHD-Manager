@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12161c">
+<title>Hersteller · Product Manager</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2312161c'/%3E%3Cpath d='M8 21l4-10 3 6 2-3 5 7z' fill='%235ec486'/%3E%3C/svg%3E">
+</head>
+<body class="page-settings">
+<!-- Übersicht -->
+<header class="topbar" id="list-header">
+  <div class="brand">
+    <a class="back" href="/" title="Zurück zur Übersicht" aria-label="Zurück zur Übersicht">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+    <div>
+      <h1>Hersteller</h1>
+      <p class="sub" id="maker-subline">Lade …</p>
+    </div>
+  </div>
+  <nav class="actions">
+    <button class="btn primary" id="btn-new-maker" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Hersteller</span>
+    </button>
+  </nav>
+</header>
+
+<!-- Detailseite -->
+<header class="topbar" id="detail-header" hidden>
+  <div class="brand">
+    <a class="back" id="btn-back" href="/manufacturers" title="Zurück zur Liste" aria-label="Zurück zur Liste">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+    <div>
+      <h1 id="detail-name">Hersteller</h1>
+      <p class="sub" id="detail-sub"></p>
+    </div>
+  </div>
+  <nav class="actions">
+    <button class="btn ghost" id="btn-edit-maker" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+      <span>Bearbeiten</span>
+    </button>
+  </nav>
+</header>
+
+<main class="settings-main">
+  <!-- Liste -->
+  <section id="view-list">
+    <div class="search maker-search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <input id="maker-search" type="search" placeholder="Hersteller, Ort, Kontakt …" autocomplete="off" aria-label="Hersteller suchen">
+    </div>
+    <ul class="maker-list" id="maker-list"></ul>
+    <p class="empty" id="maker-empty" hidden></p>
+  </section>
+
+  <!-- Detail -->
+  <section id="view-detail" hidden>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" type="button" data-mtab="info">Kontakt &amp; Bestellung</button>
+      <button class="tab" type="button" data-mtab="products">Produkte</button>
+    </nav>
+
+    <section class="panel" data-mpanel="info">
+      <dl class="facts wide" id="maker-facts"></dl>
+      <p class="rules" id="maker-notes"></p>
+      <div class="section-actions">
+        <button class="btn ghost small" id="btn-del-maker" type="button">Hersteller löschen</button>
+      </div>
+    </section>
+
+    <section class="panel" data-mpanel="products" hidden>
+      <p class="hint">Produkte dieses Herstellers — gleiche Ansicht wie in der Gesamtübersicht.</p>
+      <div id="maker-products" class="list"></div>
+      <p class="empty" id="maker-products-empty" hidden>Diesem Hersteller sind noch keine Produkte zugeordnet.</p>
+    </section>
+  </section>
+</main>
+
+<!-- Hersteller anlegen/bearbeiten -->
+<dialog id="maker-dialog" class="sheet">
+  <form id="maker-form" novalidate>
+    <h2 id="maker-form-title">Neuer Hersteller</h2>
+    <div class="form-grid">
+      <label class="field full">
+        <span>Name</span>
+        <input name="name" type="text" maxlength="120" required placeholder="z. B. Mecklenburger Landpute">
+      </label>
+      <label class="field">
+        <span>Ansprechpartner</span>
+        <input name="contact_name" type="text" maxlength="120" placeholder="optional">
+      </label>
+      <label class="field">
+        <span>Telefon</span>
+        <input name="phone" type="tel" maxlength="60" placeholder="optional">
+      </label>
+      <label class="field full">
+        <span>E-Mail</span>
+        <input name="email" type="email" maxlength="120" placeholder="optional">
+      </label>
+      <label class="field full">
+        <span>Straße</span>
+        <input name="street" type="text" maxlength="120" placeholder="optional">
+      </label>
+      <label class="field">
+        <span>PLZ</span>
+        <input name="postal_code" type="text" maxlength="20" placeholder="optional">
+      </label>
+      <label class="field">
+        <span>Ort</span>
+        <input name="city" type="text" maxlength="80" placeholder="optional">
+      </label>
+      <label class="field full">
+        <span>Website</span>
+        <input name="website" type="text" maxlength="200" placeholder="optional">
+      </label>
+      <label class="field">
+        <span>Bestellvorlauf (Tage)</span>
+        <input name="order_lead_days" type="number" min="0" max="365" step="1" inputmode="numeric" placeholder="z. B. 7">
+      </label>
+      <label class="field">
+        <span>Bestellrhythmus / Termin</span>
+        <input name="order_note" type="text" maxlength="300" placeholder="z. B. jeden Montag">
+      </label>
+      <label class="field full">
+        <span>Lieferung</span>
+        <input name="delivery_note" type="text" maxlength="300" placeholder="z. B. Donnerstag vormittags">
+      </label>
+      <label class="field full">
+        <span>Notiz</span>
+        <input name="notes" type="text" maxlength="1000" placeholder="optional">
+      </label>
+    </div>
+    <p class="form-error" id="maker-error" role="alert" hidden></p>
+    <div class="section-actions spread">
+      <button class="btn ghost" type="button" id="maker-cancel">Abbrechen</button>
+      <button class="btn primary" type="submit" id="maker-save">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="/manufacturers.js"></script>
+</body>
+</html>

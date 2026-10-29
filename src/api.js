@@ -2,7 +2,7 @@
 import express from 'express';
 import { openDb } from './db.js';
 import {
-  validateProduct, validateBatch, validateCategoryName, daysUntil, statusOf, todayUTC,
+  validateProduct, validateBatch, validateCategoryName, validateManufacturer, daysUntil, statusOf, todayUTC,
   isValidDate, freezeDeadline, freezeStatus, frozenBestBefore, effectiveWarnDays, PACES, checkIntervalDays, warnDaysForStock,
 } from './validation.js';
 import { verifyPassword, newSessionToken, isValidSessionToken, LoginLimiter } from './auth.js';
@@ -52,6 +52,19 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     sessionTouch: db.prepare("UPDATE sessions SET last_seen = datetime('now') WHERE token = ?"),
     sessionSweep: db.prepare('DELETE FROM sessions WHERE expires_at < ?'),
     products: db.prepare('SELECT * FROM products WHERE archived = 0 ORDER BY name COLLATE NOCASE'),
+    manufacturers: db.prepare('SELECT * FROM manufacturers ORDER BY name COLLATE NOCASE'),
+    manufacturer: db.prepare('SELECT * FROM manufacturers WHERE id = ?'),
+    manufacturerByName: db.prepare('SELECT * FROM manufacturers WHERE name = ? COLLATE NOCASE'),
+    insertManufacturer: db.prepare(`INSERT INTO manufacturers
+      (name, contact_name, email, phone, street, postal_code, city, website,
+       order_lead_days, order_note, delivery_note, notes, active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+    updateManufacturer: db.prepare(`UPDATE manufacturers SET name=?, contact_name=?, email=?,
+      phone=?, street=?, postal_code=?, city=?, website=?, order_lead_days=?, order_note=?,
+      delivery_note=?, notes=?, active=?, updated_at=datetime('now') WHERE id=?`),
+    deleteManufacturer: db.prepare('DELETE FROM manufacturers WHERE id = ?'),
+    productsOfManufacturer: db.prepare('SELECT * FROM products WHERE manufacturer_id = ? AND archived = 0 ORDER BY name COLLATE NOCASE'),
+    setProductManufacturer: db.prepare('UPDATE products SET manufacturer_id = ? WHERE id = ?'),
     product: db.prepare('SELECT * FROM products WHERE id = ?'),
     insertProduct: db.prepare(`INSERT INTO products
       (name, category, unit, location, warn_days, freeze_days, tk_days, pace, check_days, manufacturer, notes)
@@ -152,8 +165,10 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
       return (rank[key] ?? 9) < (rank[acc] ?? 9) ? key : acc;
     }, 'ok');
 
+    const maker = product.manufacturer_id ? q.manufacturer.get(product.manufacturer_id) : null;
     return {
       ...product,
+      manufacturer_name: maker ? maker.name : (product.manufacturer || ''),
       warn_days_effective: effectiveWarnDays(product, defaultWarn()),
       warn_days_stock: warnDaysForStock(product, stock, effectiveWarnDays(product, defaultWarn())),
       batches: decorated,
@@ -436,6 +451,19 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     });
   });
 
+  /** Hersteller aus dem Formular: ID bevorzugt, Name als Rückfallebene (Altdaten). */
+  const resolveManufacturerId = (body) => {
+    const rawId = body?.manufacturer_id;
+    if (rawId !== undefined && rawId !== null && rawId !== '') {
+      const id = Number(rawId);
+      return Number.isInteger(id) && q.manufacturer.get(id) ? id : null;
+    }
+    const name = String(body?.manufacturer || '').trim();
+    if (!name) return null;
+    const hit = q.manufacturerByName.get(name);
+    return hit ? hit.id : null;
+  };
+
   api.get('/products/:id', (req, res) => {
     const p = loadProduct(Number(req.params.id), todayOf(req));
     if (!p) return res.status(404).json({ error: 'Produkt nicht gefunden.' });
@@ -450,6 +478,8 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
       value.warn_days, value.freeze_days, value.tk_days, value.pace, value.check_days, value.manufacturer, value.notes
     );
     const id = Number(info.lastInsertRowid);
+    const makerId = resolveManufacturerId(req.body);
+    if (makerId) q.setProductManufacturer.run(makerId, id);
     ql('product_created', { req, productId: id, entityName: value.name, detail: `${value.category || 'ohne Kategorie'} · ${value.unit}` });
     res.status(201).json(loadProduct(id, todayUTC()));
   });
@@ -464,8 +494,85 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
       value.name, value.category, value.unit, value.location,
       value.warn_days, value.freeze_days, value.tk_days, value.pace, value.check_days, value.manufacturer, value.notes, id
     );
+    if (req.body && ('manufacturer_id' in req.body || 'manufacturer' in req.body)) {
+      q.setProductManufacturer.run(resolveManufacturerId(req.body), id);
+    }
     ql('product_updated', { req, productId: id, entityName: value.name, detail: describeProductChange(before, value) });
     res.json(loadProduct(id, todayUTC()));
+  });
+
+  /* ---------- Hersteller ---------- */
+  const manufacturerWithStats = (row) => {
+    if (!row) return null;
+    const products = q.productsOfManufacturer.all(row.id);
+    return {
+      ...row,
+      product_count: products.length,
+      active_products: products.filter((p) => q.batchesOf.all(p.id).some((b) => b.quantity > 0)).length,
+    };
+  };
+
+  api.get('/manufacturers', (req, res) => {
+    res.json({ manufacturers: q.manufacturers.all().map(manufacturerWithStats) });
+  });
+
+  api.get('/manufacturers/:id', (req, res) => {
+    const row = q.manufacturer.get(Number(req.params.id));
+    if (!row) return res.status(404).json({ error: 'Hersteller nicht gefunden.' });
+    const today = todayOf(req);
+    const products = q.productsOfManufacturer.all(row.id)
+      .map((p) => decorateProduct(p, q.batchesOf.all(p.id), today));
+    res.json({ manufacturer: manufacturerWithStats(row), products });
+  });
+
+  api.post('/manufacturers', (req, res) => {
+    const check = validateManufacturer(req.body);
+    if (!check.ok) return res.status(400).json({ errors: check.errors });
+    if (q.manufacturerByName.get(check.value.name)) {
+      return res.status(409).json({ errors: ['Ein Hersteller mit diesem Namen existiert bereits.'] });
+    }
+    const v = check.value;
+    const info = q.insertManufacturer.run(v.name, v.contact_name, v.email, v.phone, v.street,
+      v.postal_code, v.city, v.website, v.order_lead_days, v.order_note, v.delivery_note, v.notes, v.active);
+    const id = Number(info.lastInsertRowid);
+    ql('manufacturer_created', { req, entity: 'manufacturer', entityName: v.name, detail: 'angelegt' });
+    res.status(201).json(manufacturerWithStats(q.manufacturer.get(id)));
+  });
+
+  api.put('/manufacturers/:id', (req, res) => {
+    const id = Number(req.params.id);
+    const before = q.manufacturer.get(id);
+    if (!before) return res.status(404).json({ error: 'Hersteller nicht gefunden.' });
+    const check = validateManufacturer(req.body);
+    if (!check.ok) return res.status(400).json({ errors: check.errors });
+    const clash = q.manufacturerByName.get(check.value.name);
+    if (clash && clash.id !== id) {
+      return res.status(409).json({ errors: ['Ein anderer Hersteller trägt diesen Namen.'] });
+    }
+    const v = check.value;
+    q.updateManufacturer.run(v.name, v.contact_name, v.email, v.phone, v.street, v.postal_code,
+      v.city, v.website, v.order_lead_days, v.order_note, v.delivery_note, v.notes, v.active, id);
+    // Freitext auf Produkten mitziehen, damit Liste und Suche konsistent bleiben
+    if (before.name !== v.name) {
+      db.prepare('UPDATE products SET manufacturer = ? WHERE manufacturer_id = ?').run(v.name, id);
+    }
+    ql('manufacturer_updated', { req, entity: 'manufacturer', entityName: v.name, detail: 'geändert' });
+    res.json(manufacturerWithStats(q.manufacturer.get(id)));
+  });
+
+  api.delete('/manufacturers/:id', (req, res) => {
+    const id = Number(req.params.id);
+    const row = q.manufacturer.get(id);
+    if (!row) return res.status(404).json({ error: 'Hersteller nicht gefunden.' });
+    const linked = q.productsOfManufacturer.all(id).length;
+    if (linked > 0) {
+      return res.status(409).json({
+        error: `An diesem Hersteller hängen ${linked} Produkt(e). Erst die Produkte einem anderen Hersteller zuordnen.`,
+      });
+    }
+    q.deleteManufacturer.run(id);
+    ql('manufacturer_deleted', { req, entity: 'manufacturer', entityName: row.name, detail: 'gelöscht' });
+    res.status(204).end();
   });
 
   /* ---------- Bestandsprüfung ---------- */

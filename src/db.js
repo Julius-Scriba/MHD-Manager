@@ -67,6 +67,33 @@ function createV3(db) {
   // v3.6: Hersteller je Produkt (z. B. eigener Hof, Fremdbetrieb). Freitext,
   // damit niemand erst eine Herstellerverwaltung anlegen muss.
   add('manufacturer', "TEXT NOT NULL DEFAULT ''");
+
+  // v4: Hersteller als eigene Entität. Produkte verweisen per manufacturer_id,
+  // der Freitext bleibt als Rückfallebene für Altdaten erhalten.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS manufacturers (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      name         TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      contact_name TEXT NOT NULL DEFAULT '',
+      email        TEXT NOT NULL DEFAULT '',
+      phone        TEXT NOT NULL DEFAULT '',
+      street       TEXT NOT NULL DEFAULT '',
+      postal_code  TEXT NOT NULL DEFAULT '',
+      city         TEXT NOT NULL DEFAULT '',
+      website      TEXT NOT NULL DEFAULT '',
+      order_lead_days INTEGER,
+      order_note   TEXT NOT NULL DEFAULT '',
+      delivery_note TEXT NOT NULL DEFAULT '',
+      notes        TEXT NOT NULL DEFAULT '',
+      active       INTEGER NOT NULL DEFAULT 1,
+      created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+  if (!cols.includes('manufacturer_id')) {
+    db.exec('ALTER TABLE products ADD COLUMN manufacturer_id INTEGER REFERENCES manufacturers(id) ON DELETE SET NULL');
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_products_manufacturer ON products(manufacturer_id)');
   const batchCols = db.prepare('PRAGMA table_info(batches)').all().map((c) => c.name);
   if (!batchCols.includes('checked_at')) {
     db.exec('ALTER TABLE batches ADD COLUMN checked_at TEXT');

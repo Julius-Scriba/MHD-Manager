@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.11.0 — 2026-10-29
+
+Hersteller als eigene Seiten, App heißt jetzt Product Manager.
+
+**Neu**
+- Tabelle `manufacturers`: Kontakt, Adresse, Website, Bestellvorlauf,
+  Bestellrhythmus, Lieferung, Notiz
+- `/manufacturers` — Liste mit Suche über Name, Ort, Kontakt, E-Mail, Telefon
+- `/manufacturers/<id>` — eigene Seite mit zwei Tabs:
+  Kontakt & Bestellung, Produkte (gleiche Karten wie die Gesamtübersicht)
+- Produkte verweisen per `manufacturer_id` auf einen Hersteller; `manufacturers`
+  werden beim Laden mitgeliefert und beim Speichern mitgeschickt
+- Hersteller umbenennen zieht den Namen auf den Produkten mit
+- Löschen nur ohne zugeordnete Produkte (Server antwortet sonst mit 409)
+
+**Geändert**
+- „MHD Manager" heißt „Product Manager" (Titel, Überschrift, Anmeldeseite)
+- Kopfzeile der Übersicht hat einen Hersteller-Link
+- Bestehende Freitext-Hersteller wurden in Datensätze überführt (25 Produkte)
+
+**Absicherung**
+- Release-Prüfung: `npm test`, Syntax je Datei, Test-API-Läufe gegen `mhd2`
+
 ## v0.10.0 — 2026-10-29
 
 Produktkarten aufgeräumt: Übersicht bleibt Übersicht, Details erst beim Aufklappen.

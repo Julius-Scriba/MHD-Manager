@@ -466,3 +466,35 @@ body.check-mode .check-row { display: flex; }
 }
 .check-bar .tally { flex: 1; font-size: 12.5px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
 .tally b { color: var(--text, inherit); font-variant-numeric: tabular-nums; }
+
+/* ---------- Hersteller ---------- */
+.maker-search { margin-bottom: 14px; }
+.maker-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.maker-item {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  border-left: 3px solid var(--line);
+}
+.maker-item:hover { background: var(--surface-2); }
+.maker-item .chev { width: 18px; height: 18px; color: var(--muted); flex: none; margin-right: 12px; }
+.maker-link {
+  flex: 1; min-width: 0; padding: 12px 4px 12px 14px;
+  text-decoration: none; color: inherit; display: block;
+}
+.maker-name { display: block; font-size: 14.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.maker-sub { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+
+.facts.wide {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px 20px; margin: 0 0 12px;
+}
+.facts.wide dt {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted); margin: 0 0 2px;
+}
+.facts.wide dd {
+  margin: 0; font-size: 13.5px; word-break: break-word;
+}
+.facts.wide dd a { color: var(--accent); text-decoration: none; }
+.facts.wide dd a:hover { text-decoration: underline; }
+.maker-products-wrap { margin-top: 18px; }

@@ -128,6 +128,39 @@ const str = (v, max, fallback = '') => {
   return s.length > max ? s.slice(0, max) : s;
 };
 
+/** Herstellerstamm validieren. */
+export function validateManufacturer(body = {}) {
+  const errors = [];
+  const name = str(body.name, 120);
+  if (!name) errors.push('Name ist Pflichtfeld.');
+
+  const email = str(body.email, 120);
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) errors.push('E-Mail sieht nicht gültig aus.');
+
+  const lead = intOrNull(body.order_lead_days, 0, 365);
+  if (lead === undefined) errors.push('Bestellvorlauf muss zwischen 0 und 365 Tagen liegen (leer = unbekannt).');
+
+  return {
+    ok: errors.length === 0,
+    errors,
+    value: {
+      name,
+      contact_name: str(body.contact_name, 120),
+      email,
+      phone: str(body.phone, 60),
+      street: str(body.street, 120),
+      postal_code: str(body.postal_code, 20),
+      city: str(body.city, 80),
+      website: str(body.website, 200),
+      order_lead_days: lead,
+      order_note: str(body.order_note, 300),
+      delivery_note: str(body.delivery_note, 300),
+      notes: str(body.notes, 1000),
+      active: body.active === false || body.active === 0 ? 0 : 1,
+    },
+  };
+}
+
 /** Produktstamm validieren. */
 export function validateProduct(body = {}) {
   const errors = [];

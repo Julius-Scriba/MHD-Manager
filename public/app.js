@@ -10,7 +10,7 @@ const PACES = [
 const NEW_CATEGORY = '__new__';
 
 const state = {
-  products: [], categories: [], counts: {}, today: '', warnDays: 7, user: null,
+  products: [], categories: [], manufacturers: [], counts: {}, today: '', warnDays: 7, user: null,
   search: '', filter: '', sort: 'mhd', open: new Set(),
   editProduct: null, editBatch: null, batchParent: null,
 };
@@ -39,9 +39,12 @@ async function api(path, opts = {}) {
 /* ---------- Laden ---------- */
 async function load() {
   try {
-    const [me, cats] = await Promise.all([api('/api/me'), api('/api/categories')]);
+    const [me, cats, makers] = await Promise.all([
+      api('/api/me'), api('/api/categories'), api('/api/manufacturers'),
+    ]);
     state.user = me.user;
     state.categories = cats.categories;
+    state.manufacturers = makers.manufacturers;
     const data = await api('/api/overview');
     state.products = data.products;
     state.counts = data.counts;
@@ -60,7 +63,7 @@ function visibleProducts() {
   const term = state.search.trim().toLowerCase();
   let list = state.products.filter((p) => {
     if (term) {
-      const hit = [p.name, p.category, p.location, p.manufacturer, p.notes].some((f) => String(f || '').toLowerCase().includes(term));
+      const hit = [p.name, p.category, p.location, p.manufacturer, p.manufacturer_name, p.notes].some((f) => String(f || '').toLowerCase().includes(term));
       if (!hit) return false;
     }
     if (state.filter === 'freeze') return p.batches.some((b) => b.quantity > 0 && (b.freeze_status === 'due' || b.freeze_status === 'missed'));
@@ -103,9 +106,9 @@ function render() {
     .sort().map((v) => `<option value="${esc(v)}"></option>`).join('');
   const makers = document.getElementById('manufacturer-list');
   if (makers) {
-    makers.innerHTML = [...new Set(state.products.map((p) => p.manufacturer).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b, 'de'))
-      .map((v) => `<option value="${esc(v)}"></option>`).join('');
+    makers.innerHTML = state.manufacturers
+      .filter((m) => m.active)
+      .map((m) => `<option value="${esc(m.name)}" data-id="${m.id}"></option>`).join('');
   }
 }
 
@@ -162,7 +165,7 @@ function productDetailHtml(p) {
   const facts = [
     ['Ort', p.location],
     ['Kategorie', p.category],
-    ['Hersteller', p.manufacturer],
+    ['Hersteller', p.manufacturer_name || p.manufacturer],
   ].filter(([, v]) => v);
 
   const rules = [];
@@ -355,7 +358,11 @@ function openProductDialog(product) {
     productForm.freeze_days.value = product.freeze_days ?? '';
     productForm.tk_days.value = product.tk_days ?? '';
     productForm.check_days.value = product.check_days ?? '';
-    productForm.manufacturer.value = product.manufacturer || '';
+    // Verknüpfter Hersteller hat Vorrang vor altem Freitext
+    const maker = product.manufacturer_id
+      ? state.manufacturers.find((m) => m.id === product.manufacturer_id)
+      : null;
+    productForm.manufacturer.value = maker ? maker.name : (product.manufacturer || '');
     productForm.notes.value = product.notes || '';
   }
   updatePaceHint();
@@ -378,6 +385,9 @@ productForm.addEventListener('submit', async (e) => {
     tk_days: raw.tk_days === '' ? null : raw.tk_days,
     check_days: raw.check_days === '' ? null : raw.check_days,
     manufacturer: raw.manufacturer || '',
+    manufacturer_id: (state.manufacturers.find(
+      (m) => m.name.toLowerCase() === String(raw.manufacturer || '').trim().toLowerCase()
+    ) || {}).id ?? null,
   };
   try {
     if (state.editProduct) await api(`/api/products/${state.editProduct.id}`, { method: 'PUT', body: JSON.stringify(payload) });
