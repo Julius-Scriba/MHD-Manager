@@ -143,6 +143,115 @@
   </form>
 </dialog>
 
+<!-- Produkt bearbeiten (gleiche Felder wie in der Übersicht) -->
+<dialog id="product-dialog" class="sheet">
+  <form id="product-form" novalidate>
+    <h2 id="product-title">Produkt bearbeiten</h2>
+    <div class="grid">
+      <label class="field full">
+        <span>Name *</span>
+        <input name="name" type="text" maxlength="120" required autocomplete="off">
+      </label>
+      <label class="field full">
+        <span>Kategorie *</span>
+        <select name="category" id="mk-category" required></select>
+        <small class="field-note" id="mk-category-note">Bestimmt, welche Felder das Produkt hat.</small>
+      </label>
+      <label class="field">
+        <span>Ort im Lager</span>
+        <select name="location" id="mk-location"></select>
+      </label>
+      <label class="field">
+        <span>Einheit</span>
+        <select name="unit" id="mk-unit"></select>
+      </label>
+      <label class="field full" id="mk-new-location-wrap" hidden>
+        <span>Neuer Ort</span>
+        <input name="new_location" type="text" maxlength="60" autocomplete="off" placeholder="z. B. Mittelsäule">
+      </label>
+      <label class="field full">
+        <span>Verkaufstempo</span>
+        <select name="pace" id="mk-pace"></select>
+      </label>
+      <p class="hint full-hint" id="mk-pace-hint"></p>
+      <label class="field">
+        <span>Warnzeit überschreiben (Tage)</span>
+        <input name="warn_days" type="number" min="0" max="365" step="1" inputmode="numeric" placeholder="aus Tempo">
+      </label>
+      <label class="field">
+        <span>Bestand prüfen alle (Tage)</span>
+        <input name="check_days" type="number" min="1" max="365" step="1" inputmode="numeric" placeholder="aus Tempo">
+      </label>
+      <label class="field" id="mk-freeze-wrap" hidden>
+        <span>Einfrieren: Tage vor Frisch-MHD</span>
+        <input name="freeze_days" type="number" min="0" max="60" step="1" inputmode="numeric" placeholder="leer = kein Einfrieren">
+      </label>
+      <label class="field full" id="mk-tk-wrap" hidden>
+        <span>TK-Haltbarkeit in Tagen (ab Einfrieren)</span>
+        <input name="tk_days" type="number" min="1" max="3650" step="1" inputmode="numeric" placeholder="z. B. 90">
+      </label>
+      <label class="field full">
+        <span>Notiz</span>
+        <input name="notes" type="text" maxlength="500" placeholder="optional">
+      </label>
+    </div>
+    <p class="form-error" id="product-error" role="alert" hidden></p>
+    <div class="section-actions spread">
+      <button class="btn ghost" type="button" id="product-cancel">Abbrechen</button>
+      <button class="btn primary" type="submit" id="product-save">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Charge anlegen oder ändern -->
+<dialog id="batch-dialog" class="sheet">
+  <form id="batch-form" novalidate>
+    <h2 id="batch-title">Neue Charge</h2>
+    <p class="sheet-sub" id="batch-sub"></p>
+    <div class="grid">
+      <label class="field">
+        <span>Frisch-MHD *</span>
+        <input name="best_before" type="date" required>
+      </label>
+      <label class="field">
+        <span>Menge <em id="batch-unit"></em></span>
+        <input name="quantity" type="number" min="0" max="999999" step="any" inputmode="decimal" value="1">
+      </label>
+      <label class="field full">
+        <span>Bereits eingefroren am</span>
+        <input name="frozen_on" type="date">
+      </label>
+      <label class="field full">
+        <span>Notiz zur Charge</span>
+        <input name="note" type="text" maxlength="300" placeholder="z. B. Lieferung Müller">
+      </label>
+    </div>
+    <p class="form-error" id="batch-error" role="alert" hidden></p>
+    <div class="section-actions spread">
+      <button class="btn ghost" type="button" id="batch-cancel">Abbrechen</button>
+      <button class="btn primary" type="submit" id="batch-save">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Bestand zählen -->
+<dialog id="check-dialog" class="sheet">
+  <form id="check-form" novalidate>
+    <h2 id="check-title">Charge prüfen</h2>
+    <p class="sheet-sub" id="check-sub"></p>
+    <label class="field full">
+      <span>Gezählte Menge</span>
+      <input name="quantity" id="check-qty" type="number" min="0" max="999999" step="any" inputmode="decimal" required>
+    </label>
+    <p class="hint" id="check-hint"></p>
+    <p class="form-error" id="check-error" role="alert" hidden></p>
+    <div class="section-actions spread">
+      <button class="btn ghost" type="button" id="check-cancel">Abbrechen</button>
+      <button class="btn primary" type="submit" id="check-save">Bestätigen</button>
+    </div>
+  </form>
+</dialog>
+
 <script src="/manufacturers.js"></script>
 </body>
 </html>

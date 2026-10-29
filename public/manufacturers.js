@@ -7,8 +7,9 @@ const fmtDate = (iso) => (iso ? iso.split('-').reverse().join('.') : '');
 const fmtQty = (n) => (Number(n) % 1 === 0 ? String(Number(n)) : String(Number(n).toFixed(2)).replace('.', ','));
 
 const state = {
-  makers: [], products: [], cats: [], counts: {}, today: '',
+  makers: [], products: [], cats: [], locations: [], counts: {}, today: '',
   search: '', current: null, open: new Set(),
+  editingProductId: null, editBatch: null, batchParent: null,
 };
 
 async function api(path, opts = {}) {
@@ -35,6 +36,7 @@ async function loadList() {
   const [data, cats] = await Promise.all([api('/api/manufacturers'), api('/api/categories')]);
   state.makers = data.manufacturers;
   state.cats = cats.categories;
+  state.locations = cats.locations || [];
   renderList();
 }
 
@@ -85,6 +87,7 @@ async function loadDetail(id) {
   const data = await api(`/api/manufacturers/${id}`);
   state.current = data.manufacturer;
   state.products = data.products;
+  state.today = data.today || state.today;
   state.open = new Set();
   renderDetail();
 }
@@ -156,11 +159,19 @@ function statusChipOf(b) {
     : status === 'urgent' ? 'heute fällig'
     : status === 'soon' ? `in ${days} T.`
     : 'haltbar';
-  const tk = b.frozen_on ? '<span class="chip freeze">TK</span>' : '';
+  const tk = (b.frozen_on || b.tk_best_before) ? '<span class="chip freeze">TK</span>' : '';
   return `<span class="chip ${status}">${label}</span>${tk}`;
 }
 
-/** Gleiche Karten wie in der Gesamtübersicht — nur ohne Produkt-Aktionen. */
+function canFreeze(p) {
+  return p.freeze_days !== null && p.freeze_days !== undefined && p.tk_days;
+}
+
+/**
+ * Karte in der Herstelleransicht: alle Aktionen der Gesamtübersicht
+ * (Charge anlegen, zählen, einfrieren, bearbeiten, löschen, Produkt bearbeiten
+ * und löschen) plus ein Link in die volle Produktdetailseite.
+ */
 function cardHtml(p) {
   const open = state.open.has(p.id);
   const unit = esc(p.unit);
@@ -171,6 +182,22 @@ function cardHtml(p) {
     ? p.batches.map((b) => batchHtml(b, p)).join('')
     : '<div class="batch-empty">Noch keine Charge erfasst.</div>';
 
+  const facts = [
+    ['Ort', p.location],
+    ['Kategorie', p.category],
+  ].filter(([, v]) => v);
+
+  const rules = [];
+  if (p.warn_days_stock > p.warn_days_effective) {
+    rules.push(`Warnung ab ${p.warn_days_effective} T. (bei ${fmtQty(p.total_quantity)} ${p.unit} Bestand: ${p.warn_days_stock} T.)`);
+  } else {
+    rules.push(`Warnung ab ${p.warn_days_effective} T. vor MHD`);
+  }
+  rules.push(p.freeze_days === null || p.freeze_days === undefined
+    ? 'Einfrieren nicht vorgesehen'
+    : `einfrieren bis ${p.freeze_days} T. vor MHD` + (p.tk_days ? ` · TK ${p.tk_days} T.` : ''));
+  if (p.notes) rules.push(`Notiz: ${p.notes}`);
+
   return `<article class="card ${open ? 'open' : ''}" data-worst="${p.worst_status}" data-id="${p.id}">
     <button class="card-head" type="button" data-act="toggle" aria-expanded="${open}">
       <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -180,7 +207,24 @@ function cardHtml(p) {
       </div>
       <div class="card-flags">${checkChip}${p.freeze_due_count ? `<span class="chip freeze">${p.freeze_due_count}× TK</span>` : ''}</div>
     </button>
-    <div class="batches">${batches}</div>
+    <div class="batches">
+      <div class="prod-detail">
+        ${facts.length ? `<dl class="facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
+        <p class="rules">${rules.map((r) => esc(r)).join(' · ')}</p>
+        <div class="prod-actions">
+          <a class="btn ghost small" href="/products/${p.id}" data-act="open-product">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-8 8M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Details</span>
+          </a>
+          <button class="btn ghost small" type="button" data-act="edit-product">Bearbeiten</button>
+          <button class="btn ghost small danger" type="button" data-act="del-product">Löschen</button>
+        </div>
+      </div>
+      ${batches}
+      <div class="add-batch"><button class="btn ghost small" type="button" data-act="add-batch">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Charge</button></div>
+    </div>
   </article>`;
 }
 
@@ -197,11 +241,26 @@ function batchHtml(b, p) {
     b.note ? esc(b.note) : '',
   ].filter(Boolean).join(' · ');
 
+  // Einfrieren nur anbieten, solange die Frist läuft
+  const freezeBtn = (canFreeze(p) && !b.frozen_on && b.freeze_status === 'due')
+    ? '<button class="btn freeze small" type="button" data-act="freeze">Einfrieren</button>' : '';
+
   return `<div class="batch" data-status="${b.status}" data-batch="${b.id}">
     <div class="days"><div class="d">${dayBig}</div><div class="u">${dayUnit}</div></div>
     <div class="batch-info">
       <div class="l1">${esc(p.name)} ${statusChipOf(b)}</div>
       <div class="l2">${info}</div>
+    </div>
+    <div class="batch-actions">
+      ${b.quantity > 0 || b.check_due
+        ? `<button class="btn ghost small" type="button" data-act="check-batch" title="Bestand zählen">${b.check_due ? 'Zählen' : 'Gezählt'}</button>` : ''}
+      ${freezeBtn}
+      <span class="icon-btn" role="button" tabindex="0" data-act="edit-batch" title="Charge bearbeiten" aria-label="Charge bearbeiten">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L18 10l-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+      </span>
+      <span class="icon-btn danger" role="button" tabindex="0" data-act="del-batch" title="Charge löschen" aria-label="Charge löschen">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
     </div>
   </div>`;
 }
@@ -215,6 +274,303 @@ document.addEventListener('click', (e) => {
   if (state.open.has(id)) state.open.delete(id); else state.open.add(id);
   card.classList.toggle('open');
   head.setAttribute('aria-expanded', String(state.open.has(id)));
+});
+
+/* ---------- Aktionen auf den Karten ---------- */
+const UNITS = ['kg', 'g', 'Stk', 'Pkg', 'l', 'ml', 'Dose', 'Flasche'];
+const PACES = ['schnell', 'mittel', 'langsam'];
+const PACE_LABELS = {
+  schnell: 'schnell (Fleisch, Frischware)',
+  mittel: 'mittel (Molkerei, Feinkost)',
+  langsam: 'langsam (Haltbares)',
+};
+const PACE_HINT = {
+  schnell: 'Warnung 1 Tag vor MHD, Bestand prüfen jede Woche — für Ware, die schnell weggeht.',
+  mittel: 'Warnung 3 Tage vor MHD, Bestand prüfen alle 14 Tage.',
+  langsam: 'Warnung 14 Tage vor MHD, Bestand prüfen alle 30 Tage — für Ware, die lange liegt.',
+};
+
+const productDialog = $('#product-dialog');
+const productForm = $('#product-form');
+const batchDialog = $('#batch-dialog');
+const batchForm = $('#batch-form');
+const checkDialog = $('#check-dialog');
+const checkForm = $('#check-form');
+let checkTarget = null;
+
+$('#mk-unit').innerHTML = UNITS.map((u) => `<option value="${u}">${u}</option>`).join('');
+$('#mk-pace').innerHTML = PACES.map((v) => `<option value="${v}">${PACE_LABELS[v]}</option>`).join('');
+
+const updateMakerPaceHint = () => {
+  $('#mk-pace-hint').textContent = PACE_HINT[$('#mk-pace').value] || '';
+};
+$('#mk-pace').addEventListener('change', updateMakerPaceHint);
+
+function categorySchemaOf(name) {
+  const hit = state.cats.find((c) => c.name === name);
+  return (hit && hit.schema) || { freezeable: false, warnDays: 7, pace: 'mittel' };
+}
+
+function fillMakerCategorySelect(selected) {
+  const sel = $('#mk-category');
+  sel.innerHTML = ['<option value="">— wählen —</option>']
+    .concat(state.cats.map((c) => `<option value="${esc(c.name)}">${esc(c.name)}</option>`))
+    .join('');
+  if (selected && !state.cats.some((c) => c.name === selected)) {
+    sel.insertAdjacentHTML('beforeend', `<option value="${esc(selected)}">${esc(selected)}</option>`);
+  }
+  sel.value = selected || '';
+}
+
+function fillMakerLocationSelect(selected) {
+  const sel = $('#mk-location');
+  const known = new Set(state.locations || []);
+  for (const p of state.products) if (p.location) known.add(p.location);
+  sel.innerHTML = ['<option value="">— keiner —</option>']
+    .concat([...known].sort((a, b) => a.localeCompare(b, 'de'))
+      .map((l) => `<option value="${esc(l)}">${esc(l)}</option>`))
+    .concat('<option value="__new_location__">+ Neuer Ort …</option>')
+    .join('');
+  if (selected && !known.has(selected)) {
+    sel.insertAdjacentHTML('beforeend', `<option value="${esc(selected)}">${esc(selected)}</option>`);
+  }
+  sel.value = selected || '';
+  $('#mk-new-location-wrap').hidden = true;
+  productForm.new_location.value = '';
+}
+
+$('#mk-location').addEventListener('change', (e) => {
+  const isNew = e.target.value === '__new_location__';
+  $('#mk-new-location-wrap').hidden = !isNew;
+  if (isNew) setTimeout(() => productForm.new_location.focus(), 20);
+});
+
+function applyMakerCategorySchema() {
+  const schema = categorySchemaOf($('#mk-category').value);
+  $('#mk-freeze-wrap').hidden = !schema.freezeable;
+  $('#mk-tk-wrap').hidden = !schema.freezeable;
+  if (!schema.freezeable) {
+    productForm.freeze_days.value = '';
+    productForm.tk_days.value = '';
+  }
+  $('#mk-category-note').textContent = schema.freezeable
+    ? 'Diese Kategorie kann eingefroren werden — Einfrier-Vorlauf und TK-Haltbarkeit sind möglich.'
+    : 'Diese Kategorie wird nicht eingefroren — keine TK-Felder.';
+}
+
+$('#mk-category').addEventListener('change', applyMakerCategorySchema);
+
+function openMakerProductDialog(product) {
+  state.editingProductId = product.id;
+  productForm.reset();
+  $('#product-error').hidden = true;
+  $('#product-title').textContent = `Produkt bearbeiten — ${product.name}`;
+  fillMakerCategorySelect(product.category || '');
+  fillMakerLocationSelect(product.location || '');
+  productForm.name.value = product.name;
+  $('#mk-unit').value = product.unit;
+  $('#mk-pace').value = product.pace || 'mittel';
+  productForm.warn_days.value = product.warn_days ?? '';
+  productForm.freeze_days.value = product.freeze_days ?? '';
+  productForm.tk_days.value = product.tk_days ?? '';
+  productForm.check_days.value = product.check_days ?? '';
+  productForm.notes.value = product.notes || '';
+  applyMakerCategorySchema();
+  updateMakerPaceHint();
+  productDialog.showModal();
+}
+
+$('#product-cancel').addEventListener('click', () => productDialog.close());
+
+productForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const raw = Object.fromEntries(new FormData(productForm).entries());
+  const payload = {
+    name: raw.name,
+    category: raw.category,
+    location: raw.location === '__new_location__' ? String(raw.new_location || '').trim() : raw.location,
+    unit: raw.unit,
+    pace: raw.pace,
+    notes: raw.notes,
+    warn_days: raw.warn_days === '' ? null : raw.warn_days,
+    freeze_days: raw.freeze_days === '' ? null : raw.freeze_days,
+    tk_days: raw.tk_days === '' ? null : raw.tk_days,
+    check_days: raw.check_days === '' ? null : raw.check_days,
+    // Hersteller bleibt der, auf dessen Seite wir gerade sind
+    manufacturer_id: state.current ? state.current.id : null,
+    manufacturer: state.current ? state.current.name : '',
+  };
+  const save = $('#product-save');
+  save.disabled = true;
+  try {
+    await api(`/api/products/${state.editingProductId}`, { method: 'PUT', body: JSON.stringify(payload) });
+    productDialog.close();
+    await loadDetail(state.current.id);
+  } catch (err) {
+    $('#product-error').textContent = err.message;
+    $('#product-error').hidden = false;
+  } finally {
+    save.disabled = false;
+  }
+});
+
+function openBatchDialog(product, batch) {
+  state.editBatch = batch || null;
+  state.batchParent = product;
+  $('#batch-title').textContent = batch ? 'Charge bearbeiten' : 'Neue Charge';
+  $('#batch-sub').textContent = `${product.name}${product.tk_days ? ` · TK ${product.tk_days} Tage` : ''}`;
+  $('#batch-unit').textContent = `(${product.unit})`;
+  $('#batch-error').hidden = true;
+  batchForm.reset();
+  batchForm.quantity.value = '1';
+  if (batch) {
+    batchForm.best_before.value = batch.best_before;
+    batchForm.quantity.value = batch.quantity;
+    batchForm.frozen_on.value = batch.frozen_on || '';
+    batchForm.note.value = batch.note || '';
+  } else {
+    batchForm.best_before.value = state.today;
+  }
+  batchDialog.showModal();
+}
+
+$('#batch-cancel').addEventListener('click', () => batchDialog.close());
+batchDialog.addEventListener('close', () => { state.editBatch = null; state.batchParent = null; });
+
+batchForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const raw = Object.fromEntries(new FormData(batchForm).entries());
+  const payload = { ...raw, quantity: raw.quantity === '' ? 0 : raw.quantity };
+  const save = $('#batch-save');
+  save.disabled = true;
+  try {
+    if (state.editBatch) {
+      await api(`/api/batches/${state.editBatch.id}`, { method: 'PUT', body: JSON.stringify(payload) });
+    } else {
+      await api(`/api/products/${state.batchParent.id}/batches`, { method: 'POST', body: JSON.stringify(payload) });
+      state.open.add(state.batchParent.id);
+    }
+    batchDialog.close();
+    await loadDetail(state.current.id);
+  } catch (err) {
+    $('#batch-error').textContent = err.message;
+    $('#batch-error').hidden = false;
+  } finally {
+    save.disabled = false;
+  }
+});
+
+function openCheckSheet(product, batch) {
+  checkTarget = { product, batch };
+  checkForm.reset();
+  $('#check-error').hidden = true;
+  $('#check-title').textContent = product.name;
+  $('#check-sub').textContent = `Frisch-MHD ${fmtDate(batch.best_before)}${batch.frozen_on ? ` · eingefroren ${fmtDate(batch.frozen_on)}` : ''}`;
+  $('#check-qty').value = String(batch.quantity);
+  $('#check-hint').textContent = `Erfasst sind ${fmtQty(batch.quantity)} ${product.unit}. Stimmt die Zahl, einfach bestätigen.`;
+  checkDialog.showModal();
+  setTimeout(() => { $('#check-qty').focus(); $('#check-qty').select(); }, 40);
+}
+
+$('#check-cancel').addEventListener('click', () => checkDialog.close());
+checkDialog.addEventListener('close', () => { checkTarget = null; });
+
+checkForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!checkTarget) return;
+  const qty = Number($('#check-qty').value);
+  if (!Number.isFinite(qty) || qty < 0) {
+    $('#check-error').textContent = 'Bitte eine Menge ab 0 eingeben.';
+    $('#check-error').hidden = false;
+    return;
+  }
+  const btn = $('#check-save');
+  btn.disabled = true;
+  try {
+    await api(`/api/batches/${checkTarget.batch.id}/check`, {
+      method: 'POST',
+      body: JSON.stringify({ quantity: qty }),
+    });
+    checkDialog.close();
+    await loadDetail(state.current.id);
+  } catch (err) {
+    $('#check-error').textContent = err.message;
+    $('#check-error').hidden = false;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+/* ---------- Zentraler Klick-Handler ---------- */
+$('#maker-products').addEventListener('click', async (e) => {
+  const card = e.target.closest('.card');
+  if (!card) return;
+  const productId = Number(card.dataset.id);
+  const product = state.products.find((p) => p.id === productId);
+  if (!product) return;
+
+  const actEl = e.target.closest('[data-act]');
+  const act = actEl?.dataset.act;
+
+  if (act === 'toggle' || !act) {
+    if (state.open.has(productId)) state.open.delete(productId); else state.open.add(productId);
+    card.classList.toggle('open');
+    card.querySelector('.card-head').setAttribute('aria-expanded', String(state.open.has(productId)));
+    return;
+  }
+  if (act === 'open-product') return; // normaler Link
+  if (act === 'edit-product') { e.stopPropagation(); return openMakerProductDialog(product); }
+  if (act === 'add-batch') { e.stopPropagation(); return openBatchDialog(product, null); }
+  if (act === 'del-product') {
+    e.stopPropagation();
+    const n = product.batches.length;
+    const warn = n
+      ? `\n\nAchtung: ${n} ${n === 1 ? 'Charge wird' : 'Chargen werden'} ebenfalls gelöscht.`
+      : '';
+    if (!confirm(`„${product.name}" und alle Chargen endgültig löschen?${warn}`)) return;
+    try {
+      await api(`/api/products/${product.id}`, { method: 'DELETE' });
+      state.open.delete(product.id);
+      await loadDetail(state.current.id);
+    } catch (err) { alert(err.message); }
+    return;
+  }
+
+  const batchEl = e.target.closest('.batch');
+  const batch = batchEl ? product.batches.find((b) => b.id === Number(batchEl.dataset.batch)) : null;
+
+  if (act === 'freeze' && batch) {
+    e.stopPropagation();
+    actEl.disabled = true;
+    try {
+      await api(`/api/batches/${batch.id}/freeze`, { method: 'POST', body: JSON.stringify({}) });
+      await loadDetail(state.current.id);
+    } catch (err) {
+      alert(err.message);
+      actEl.disabled = false;
+    }
+    return;
+  }
+  if (act === 'edit-batch' && batch) { e.stopPropagation(); return openBatchDialog(product, batch); }
+  if (act === 'del-batch' && batch) {
+    e.stopPropagation();
+    const txt = `Charge (Frisch-MHD ${fmtDate(batch.best_before)}, ${fmtQty(batch.quantity)} ${product.unit}) löschen?`;
+    if (!confirm(txt)) return;
+    try { await api(`/api/batches/${batch.id}`, { method: 'DELETE' }); await loadDetail(state.current.id); }
+    catch (err) { alert(err.message); }
+    return;
+  }
+  if (act === 'check-batch' && batch) {
+    e.stopPropagation();
+    return openCheckSheet(product, batch);
+  }
+});
+
+$('#maker-products').addEventListener('keydown', (e) => {
+  const t = e.target.closest('[data-act]');
+  if (!t || (e.key !== 'Enter' && e.key !== ' ')) return;
+  e.preventDefault();
+  t.click();
 });
 
 /* ---------- Tabs in der Detailansicht ---------- */

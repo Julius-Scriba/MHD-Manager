@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.13.0 — 2026-10-29
+
+Herstelleransicht hat jetzt alle Aktionen der Gesamtübersicht.
+
+**Neu**
+- Produktkarte in der Herstelleransicht: Einfrieren, Charge anlegen, Charge
+  bearbeiten, Charge löschen, Bestand zählen, Produkt bearbeiten, Produkt löschen
+- Drei Dialoge dazu: `#product-dialog`, `#batch-dialog`, `#check-dialog`
+- Detailbereich in der Karte zeigt Ort, Kategorie, Warnregeln und Notiz
+- Link „Details" auf `/products/<id>` — die erweiterte Produktseite (in Arbeit)
+- `GET /api/manufacturers/:id` liefert `today` mit, damit neue Chargen das
+  richtige Startdatum bekommen
+
+**Warum**
+Bei einer Lieferung will man auf den Hersteller gehen, alle seine Produkte
+sehen und dort Chargen eintragen — ohne Umweg über die Gesamtübersicht.
+
 ## v0.12.1 — 2026-10-29
 
 Doppelte Kopfzeile auf /manufacturers und /manufacturers/<id> behoben.

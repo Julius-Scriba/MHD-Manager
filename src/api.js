@@ -559,7 +559,7 @@ export function createApp({ dbFile, publicDir, sessionSecret, secureCookies = tr
     const today = todayOf(req);
     const products = q.productsOfManufacturer.all(row.id)
       .map((p) => decorateProduct(p, q.batchesOf.all(p.id), today));
-    res.json({ manufacturer: manufacturerWithStats(row), products });
+    res.json({ manufacturer: manufacturerWithStats(row), products, today: today });
   });
 
   api.post('/manufacturers', (req, res) => {
