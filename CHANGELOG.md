@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.10.0 — 2026-10-29
+
+Produktkarten aufgeräumt: Übersicht bleibt Übersicht, Details erst beim Aufklappen.
+
+**Geändert**
+- Kopfzeile zeigt nur noch vier Dinge: Name, Menge, nächstes MHD, Warn-Chips
+- Ort, Kategorie, Hersteller, Warnregeln und Aktionen wandern in den Detailbereich
+  (zweispaltige Faktenliste, Regeln als eine Zeile, Bearbeiten/Löschen klein darunter)
+- Bearbeiten/Löschen-Icons aus der Kopfzeile entfernt — sie lagen im Aufklapp-Button
+  und lösten versehentlich Aktionen aus, statt aufzuklappen
+- Warn-Chips für Prüfung und Einfrieren sitzen rechts in der Kopfzeile
+
+**Warum**
+Ein Produkt mit zwei Chargen, Hersteller, Kategorie und Regeln hatte fünf gestapelte
+Textzeilen. Jetzt sind es zwei — die Karte bleibt scanbar, ohne dass Information fehlt.
+
 ## v0.9.1 — 2026-10-29
 
 Hersteller je Produkt.

@@ -125,21 +125,14 @@ function statusChip(b) {
 
 function cardHtml(p) {
   const open = state.open.has(p.id);
-  const headMeta = [
-    p.active_batches ? `${p.active_batches} ${p.active_batches === 1 ? 'Charge' : 'Chargen'}` : 'keine Charge',
-    `${fmtQty(p.total_quantity)} ${esc(p.unit)}`,
-    p.next_best_before ? `nächstes MHD ${fmtDate(p.next_best_before)}` : '',
-    p.location ? esc(p.location) : '',
-    p.category ? esc(p.category) : '',
-    p.manufacturer ? esc(p.manufacturer) : '',
-  ].filter(Boolean).join(' · ');
 
-  const warnLine = p.warn_days_stock > p.warn_days_effective
-    ? `Warnzeit ${p.warn_days_effective} T. · bei ${fmtQty(p.total_quantity)} ${esc(p.unit)} Bestand ${p.warn_days_stock} T.`
-    : `Warnzeit ${p.warn_days_effective} T.`;
-  const rules = [warnLine];
-  if (p.freeze_days !== null) rules.push(`einfrieren ${p.freeze_days} T. vor Frisch-MHD`);
-  if (p.tk_days) rules.push(`TK ${p.tk_days} T.`);
+  // Kopfzeile bewusst mager: Name, Menge, nächste Frist, Status-Chip.
+  // Alles Übrige (Ort, Kategorie, Hersteller, Regeln) steht im Detailbereich —
+  // sonst erschlägt die Datenmenge die Übersicht, sobald ein Produkt mehrere Chargen hat.
+  const unit = esc(p.unit);
+  const nextMhd = p.next_best_before ? `<span class="next">nächstes MHD ${fmtDate(p.next_best_before)}</span>` : '';
+  const checkChip = p.batches.some((b) => b.quantity > 0 && b.check_due)
+    ? '<span class="chip check-due">prüfen</span>' : '';
 
   const batches = p.batches.length
     ? p.batches.map((b) => batchHtml(b, p)).join('')
@@ -149,26 +142,49 @@ function cardHtml(p) {
     <button class="card-head" type="button" data-act="toggle" aria-expanded="${open}">
       <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <div class="card-title">
-        <div class="name">${esc(p.name)} <span class="qty">${fmtQty(p.total_quantity)} ${esc(p.unit)}</span></div>
-        <div class="meta"><span>${headMeta}</span></div>
-        <div class="meta"><span>${rules.join(' · ')}</span>${p.freeze_due_count ? `<span class="chip freeze">${p.freeze_due_count}× einfrieren</span>` : ''}</div>
+        <div class="name">${esc(p.name)}</div>
+        <div class="card-sub"><span class="qty">${fmtQty(p.total_quantity)} ${unit}</span>${nextMhd}</div>
       </div>
-      <div class="card-tools">
-        <span class="icon-btn" role="button" tabindex="0" data-act="edit-product" title="Produkt bearbeiten" aria-label="Produkt bearbeiten">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-        </span>
-        <span class="icon-btn danger" role="button" tabindex="0" data-act="del-product" title="Produkt löschen" aria-label="Produkt löschen">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </span>
-      </div>
+      <div class="card-flags">${checkChip}${p.freeze_due_count ? `<span class="chip freeze">${p.freeze_due_count}× TK</span>` : ''}</div>
     </button>
     <div class="batches">
+      ${productDetailHtml(p)}
       ${batches}
       <div class="add-batch"><button class="btn ghost small" type="button" data-act="add-batch">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         Charge</button></div>
     </div>
   </article>`;
+}
+
+/** Detailblock im aufgeklappten Zustand: Stammdaten als Fakten, Regeln als Zeile. */
+function productDetailHtml(p) {
+  const facts = [
+    ['Ort', p.location],
+    ['Kategorie', p.category],
+    ['Hersteller', p.manufacturer],
+  ].filter(([, v]) => v);
+
+  const rules = [];
+  if (p.warn_days_stock > p.warn_days_effective) {
+    rules.push(`Warnung ab ${p.warn_days_effective} T. (bei ${fmtQty(p.total_quantity)} ${esc(p.unit)} Bestand: ${p.warn_days_stock} T.)`);
+  } else {
+    rules.push(`Warnung ab ${p.warn_days_effective} T. vor MHD`);
+  }
+  rules.push(p.freeze_days === null ? 'Einfrieren nicht vorgesehen' : `einfrieren bis ${p.freeze_days} T. vor MHD`);
+  if (p.tk_days) rules.push(`TK ${p.tk_days} T.`);
+  if (p.notes) rules.push(`Notiz: ${esc(p.notes)}`);
+
+  return `<div class="prod-detail">
+    <dl class="facts">
+      ${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}
+    </dl>
+    <p class="rules">${rules.map((r) => esc(r)).join(' · ')}</p>
+    <div class="prod-actions">
+      <button class="btn ghost small" type="button" data-act="edit-product">Bearbeiten</button>
+      <button class="btn ghost small danger" type="button" data-act="del-product">Löschen</button>
+    </div>
+  </div>`;
 }
 
 function batchHtml(b, p) {

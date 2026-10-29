@@ -119,9 +119,37 @@ input:focus-visible, select:focus-visible, .btn:focus-visible {
 .card-head .chev { color: var(--muted); transition: transform .18s; }
 .card.open .card-head .chev { transform: rotate(90deg); }
 .card-title { min-width: 0; flex: 1; }
-.card-title .name { font-weight: 600; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.card-title .name .qty { color: var(--muted); font-weight: 400; font-size: 13.5px; }
-.card-title .meta { font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 3px 10px; margin-top: 2px; }
+.card-title .name {
+  font-weight: 600; font-size: 14.5px; line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.card-sub {
+  display: flex; flex-wrap: wrap; gap: 3px 10px; margin-top: 2px;
+  font-size: 12.5px; color: var(--muted);
+}
+.card-sub .qty { font-variant-numeric: tabular-nums; }
+.card-sub .next::before { content: "· "; }
+.card-flags { display: flex; gap: 5px; flex-shrink: 0; }
+.card-head .card-tools { display: none; }
+
+/* Detailbereich: Fakten zweispaltig, Regeln darunter, Aktionen klein */
+.prod-detail { padding: 12px 14px 8px; }
+.prod-detail .facts {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px 16px; margin: 0 0 10px;
+}
+.prod-detail .facts > div { min-width: 0; }
+.prod-detail dt {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted); margin: 0 0 1px;
+}
+.prod-detail dd {
+  margin: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.prod-detail .rules {
+  margin: 0 0 10px; font-size: 12px; color: var(--muted); line-height: 1.55;
+}
+.prod-detail .prod-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip {
   display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px;
   font-size: 11.5px; font-weight: 600; border-radius: 999px; letter-spacing: .01em;
@@ -133,6 +161,8 @@ input:focus-visible, select:focus-visible, .btn:focus-visible {
 .chip.expired { color: var(--expired); border-color: color-mix(in srgb, var(--expired) 45%, transparent); }
 .chip.freeze { color: var(--freeze); border-color: color-mix(in srgb, var(--freeze) 45%, transparent); }
 .card-head .card-tools { display: flex; gap: 6px; }
+.btn.ghost.danger { color: var(--muted); }
+.btn.ghost.danger:hover { color: var(--expired); border-color: color-mix(in srgb, var(--expired) 45%, transparent); }
 .icon-btn {
   width: 34px; height: 34px; display: grid; place-items: center; background: transparent;
   border: 1px solid var(--line); border-radius: 9px; color: var(--muted); cursor: pointer;
