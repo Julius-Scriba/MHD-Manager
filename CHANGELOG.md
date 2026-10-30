@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.14.0 — 2026-10-30
+
+Burger-Menü auf dem Handy, Kopfzeile entzerrt.
+
+**Geändert**
+- Ab 640px: Hersteller und Einstellungen stehen weiter als Buttons in der Kopfzeile
+- Darunter: beide wandern in ein Burger-Menü, das direkt unter dem Button aufklappt
+- Menü schließt bei Klick daneben, bei Escape und bei Navigation
+
+**Behoben**
+- „Produkt"-Button wurde auf dem Handy gequetscht (nur Bruchstücke der Beschriftung
+  sichtbar). Der Button hat jetzt `flex: 0 0 auto` und `min-width: 96px`, die
+  Beschriftung bleibt vollständig und wird nicht mehr umgebrochen
+
 ## v0.13.1 — 2026-10-30
 
 Statuskacheln sind anklickbar.

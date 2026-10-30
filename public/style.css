@@ -512,15 +512,41 @@ body.check-mode .check-row { display: flex; }
 .facts.wide dd a:hover { text-decoration: underline; }
 .maker-products-wrap { margin-top: 18px; }
 
-/* ---------- Topbar auf schmalen Geräten ---------- */
-@media (max-width: 560px) {
-  .topbar { gap: 8px; padding: 10px 12px 10px 12px; }
-  .topbar .actions .btn { padding: 0 10px; height: 36px; font-size: 13px; }
-  .topbar .actions .btn span { display: none; }
-  .topbar .actions .btn svg { width: 17px; height: 17px; }
-  .topbar .actions .btn.primary span { display: inline; }
+/* ---------- Topbar und Menü ---------- */
+.actions .burger { display: none; }
+
+/* Menü: ab Tablet ein Dropdown unter dem Button, auf dem Handy eine
+   breite Fläche unter der Kopfzeile. Kein Quetschen der Buttons mehr. */
+.nav-menu {
+  position: absolute; top: calc(100% - 4px); right: max(12px, env(safe-area-inset-right));
+  margin-top: 6px; z-index: 40; min-width: 200px;
+  /* absolut im sticky Header: öffnet direkt unter dem Burger, egal wie weit
+     die Seite gescrollt ist */
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; gap: 2px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border-radius: 8px; color: inherit; text-decoration: none; font-size: 14px; font-weight: 550;
+}
+.nav-item:hover { background: var(--surface-2); }
+.nav-item svg { color: var(--muted); width: 18px; height: 18px; }
+
+@media (max-width: 640px) {
+  .topbar { gap: 8px; padding: 10px 12px; }
+  .topbar .actions .only-wide { display: none; }
+  .actions .burger { display: grid; width: 38px; height: 38px; }
+  .topbar .actions .btn { height: 38px; padding: 0 12px; font-size: 13.5px; }
+  /* Der Produkt-Button behält sein Wort und darf nicht schrumpfen */
+  .topbar .actions .btn.primary { flex: 0 0 auto; white-space: nowrap; }
+  #btn-add-product { min-width: 96px; }
+  #btn-add-product span { display: inline; }
+  .nav-menu {
+    left: 8px; right: 8px; top: calc(100% - 2px); margin-top: 0; min-width: 0;
+  }
   h1 { font-size: 15.5px; }
   .sub { font-size: 12px; }
+  .brand { flex: 1 1 auto; min-width: 0; }
 }
 .field-note { display: block; margin-top: 4px; font-size: 11.5px; color: var(--muted); }
 

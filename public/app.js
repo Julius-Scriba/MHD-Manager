@@ -566,6 +566,31 @@ $('#search').addEventListener('input', (e) => {
 });
 $('#filter').addEventListener('change', (e) => { state.filter = e.target.value; render(); });
 
+/* ---------- Menü ---------- */
+const burger = $('#btn-burger');
+const navMenu = $('#nav-menu');
+
+function setMenu(open) {
+  navMenu.hidden = !open;
+  burger.setAttribute('aria-expanded', String(open));
+  burger.setAttribute('aria-label', open ? 'Menü schließen' : 'Menü öffnen');
+}
+
+burger.addEventListener('click', (e) => {
+  e.stopPropagation();
+  setMenu(navMenu.hidden);
+});
+
+// Klick daneben oder Escape schließt – sonst bleibt das Menü über dem Inhalt hängen
+document.addEventListener('click', (e) => {
+  if (navMenu.hidden) return;
+  if (e.target.closest('#nav-menu') || e.target.closest('#btn-burger')) return;
+  setMenu(false);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !navMenu.hidden) { setMenu(false); burger.focus(); }
+});
+
 $('#stats').addEventListener('click', (e) => {
   const tile = e.target.closest('[data-act="stat-filter"]');
   if (!tile) return;
