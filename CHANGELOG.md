@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.13.1 — 2026-10-30
+
+Statuskacheln sind anklickbar.
+
+**Neu**
+- Klick auf „Abgelaufen", „Heute fällig", „Einfrieren", „Bald fällig" setzt den
+  Statusfilter auf genau diese Gruppe
+- Die Kachel bleibt markiert (Rahmen + Hintergrund), der Filter steht synchron
+  im Dropdown
+- Nochmal auf dieselbe Kachel klicken hebt den Filter auf
+
+**Warum**
+Sonst wirkt eine plötzlich kurze Liste wie Datenverlust. Die Markierung sagt:
+„du siehst gerade eine Auswahl".
+
 ## v0.13.0 — 2026-10-29
 
 Herstelleransicht hat jetzt alle Aktionen der Gesamtübersicht.

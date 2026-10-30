@@ -265,17 +265,6 @@ function batchHtml(b, p) {
   </div>`;
 }
 
-/* Karten auf-/zuklappen */
-document.addEventListener('click', (e) => {
-  const head = e.target.closest('.card-head[data-act="toggle"]');
-  if (!head) return;
-  const card = head.closest('.card');
-  const id = Number(card.dataset.id);
-  if (state.open.has(id)) state.open.delete(id); else state.open.add(id);
-  card.classList.toggle('open');
-  head.setAttribute('aria-expanded', String(state.open.has(id)));
-});
-
 /* ---------- Aktionen auf den Karten ---------- */
 const UNITS = ['kg', 'g', 'Stk', 'Pkg', 'l', 'ml', 'Dose', 'Flasche'];
 const PACES = ['schnell', 'mittel', 'langsam'];

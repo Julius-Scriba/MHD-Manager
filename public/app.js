@@ -81,10 +81,18 @@ function visibleProducts() {
 
 /* ---------- Render ---------- */
 function render() {
+  // Kachel anklickbar: setzt den Statusfilter auf genau diese Gruppe.
+  // Nochmal klicken hebt den Filter wieder auf — sonst kommt man schwer zurück.
   const c = state.counts;
+  const active = state.filter;
   $('#stats').innerHTML = [
     ['expired', 'Abgelaufen'], ['urgent', 'Heute fällig'], ['freeze_due', 'Einfrieren'], ['soon', 'Bald fällig'],
-  ].map(([k, l]) => `<div class="stat" data-k="${k}"><div class="n">${c[k] || 0}</div><div class="l">${l}</div></div>`).join('');
+  ].map(([k, l]) => {
+    const on = active === k;
+    return `<button class="stat${on ? ' on' : ''}" type="button" data-k="${k}" data-act="stat-filter"
+      aria-pressed="${on}" title="${on ? 'Filter aufheben' : `Nur ${l} anzeigen`}">
+      <span class="n">${c[k] || 0}</span><span class="l">${l}</span></button>`;
+  }).join('');
 
   const nBatches = state.products.reduce((s, p) => s + p.active_batches, 0);
   $('#subline').textContent = state.products.length
@@ -557,6 +565,18 @@ $('#search').addEventListener('input', (e) => {
   searchTimer = setTimeout(() => { state.search = e.target.value; render(); }, 120);
 });
 $('#filter').addEventListener('change', (e) => { state.filter = e.target.value; render(); });
+
+$('#stats').addEventListener('click', (e) => {
+  const tile = e.target.closest('[data-act="stat-filter"]');
+  if (!tile) return;
+  const key = tile.dataset.k;
+  // Kachel und Dropdown müssen zusammenpassen: freeze_due heißt im Dropdown "freeze"
+  const value = key === 'freeze_due' ? 'freeze' : key;
+  const next = state.filter === value ? '' : value;
+  state.filter = next;
+  $('#filter').value = next;
+  render();
+});
 $('#sort').addEventListener('change', (e) => { state.sort = e.target.value; render(); });
 
 /* ---------- Gemeinsam ---------- */
