@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.16.0 — 2026-10-30
+
+Neue Benutzer bekommen denselben Zugangs-Block, Passwörter sind stark.
+
+**Neu**
+- Beim Anlegen eines Benutzers erscheint nach dem Speichern derselbe Dialog
+  „Zugang weitergeben" mit URL, Benutzername, Passwort und Kopier-Button
+- Startpasswort-Feld im Benutzerformular hat Auge-Toggle und
+  „Eigenes Passwort erzeugen"
+- Ein gemeinsamer Weg für beide Fälle (Anlegen und Zurücksetzen)
+
+**Geändert**
+- Passwortgenerator: 20 Zeichen aus Groß-, Kleinbuchstaben, Ziffern und
+  Sonderzeichen, `crypto.getRandomValues` mit Rejection Sampling (verzerrungsfrei).
+  Die Wortliste („tanne-kiesel-weide-42") ist entfallen — ~30 Bit Entropie
+  sind für ein Konto zu wenig, 20 Zeichen aus 70 Zeichen sind ~122 Bit
+- Zeichen I, O, l, 0, 1 aus dem Alphabet entfernt (Verwechslung beim Abtippen)
+
 ## v0.15.1 — 2026-10-30
 
 Passwort weitergeben: Browser-Vorschlag wieder möglich, Zugangsdaten kopierbar.

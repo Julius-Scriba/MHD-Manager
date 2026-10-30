@@ -316,21 +316,27 @@ const pwResult = $('#pw-result');
 let pwTarget = null;
 let pwTargetName = '';
 
-/* Zufälliges Passwort aus Wortliste: leicht zu tippen und am Telefon zu sagen. */
-const PW_WORDS = [
-  'anker', 'aster', 'birke', 'distel', 'donner', 'eichel', 'feder', 'flieder',
-  'garten', 'hafen', 'hagel', 'hebel', 'heide', 'insel', 'kachel', 'kamin',
-  'kiesel', 'klee', 'kranich', 'laterne', 'lehm', 'linde', 'marder', 'nadel',
-  'nebel', 'nelke', 'oase', 'pfeil', 'pflug', 'quarz', 'quelle', 'regen',
-  'reisig', 'rinde', 'sand', 'schale', 'segel', 'seife', 'silo', 'sonne',
-  'spaten', 'steg', 'tanne', 'teich', 'tonne', 'turm', 'ufer', 'ulme',
-  'weide', 'wiese', 'wolke', 'zaun', 'zweig',
-];
+/* Passwort erzeugen: 20 Zeichen aus Groß, Klein, Ziffern und Sonderzeichen.
+   Mit crypto.getRandomValues und ohne Modulo-Verzerrung (Rejection Sampling) —
+   Wortlisten-Passwörter sind zu leicht zu knacken. */
+const PW_ALPHABET =
+  'ABCDEFGHJKLMNPQRSTUVWXYZ' + // ohne I und O — verwechselbar mit 1 und 0
+  'abcdefghijkmnopqrstuvwxyz' + // ohne l
+  '23456789' +                  // ohne 0 und 1
+  '!@#$%&*+-=?';
 
-function makePassword() {
-  const pick = () => PW_WORDS[crypto.getRandomValues(new Uint32Array(1))[0] % PW_WORDS.length];
-  const n = 10 + (crypto.getRandomValues(new Uint32Array(1))[0] % 90);
-  return `${[pick(), pick(), pick(), pick()].join('-')}-${n}`;
+function makePassword(length = 20) {
+  const max = 256 - (256 % PW_ALPHABET.length); // verzerrungsfreier Bereich
+  const out = [];
+  while (out.length < length) {
+    const bytes = crypto.getRandomValues(new Uint8Array(length * 2));
+    for (const b of bytes) {
+      if (b >= max) continue;          // verwerfen statt Modulo
+      out.push(PW_ALPHABET[b % PW_ALPHABET.length]);
+      if (out.length === length) break;
+    }
+  }
+  return out.join('');
 }
 
 /** Kopieren mit Rückfallebene – Clipboard-API ist nicht überall erlaubt. */
@@ -426,15 +432,8 @@ pwDialogForm.addEventListener('submit', async (e) => {
     await api(`/api/users/${pwTarget}/password`, {
       method: 'POST', body: JSON.stringify({ password: next }),
     });
-    // Werte im Ergebnisdialog bereitstellen, damit sie weitergegeben werden können
-    $('#cred-url').textContent = location.origin;
-    $('#cred-user').textContent = pwTargetName;
-    $('#cred-pass').textContent = next;
-    $('#pwd-result-sub').textContent = `Zugang für „${pwTargetName}". Alle bisherigen Sitzungen wurden beendet.`;
-    $('#pwd-result-note').textContent = '';
     pwDialog.close();
-    pwResult.showModal();
-    setTimeout(() => $('#pwd-result-copy').focus(), 40);
+    showCredential(pwTargetName, next, `Zugang für „${pwTargetName}". Alle bisherigen Sitzungen wurden beendet.`);
     await loadUsers();
   } catch (err) {
     $('#pwd-error').textContent = err.message;
@@ -443,6 +442,17 @@ pwDialogForm.addEventListener('submit', async (e) => {
     save.disabled = false;
   }
 });
+
+/** Ergebnisdialog füllen und öffnen — für Reset und für neue Benutzer. */
+function showCredential(username, password, subtitle) {
+  $('#cred-url').textContent = location.origin;
+  $('#cred-user').textContent = username;
+  $('#cred-pass').textContent = password;
+  $('#pwd-result-sub').textContent = subtitle;
+  $('#pwd-result-note').textContent = '';
+  pwResult.showModal();
+  setTimeout(() => $('#pwd-result-copy').focus(), 40);
+}
 
 $('#pwd-result-copy').addEventListener('click', () => {
   const text = credentialText({
@@ -494,16 +504,17 @@ $('#user-form').addEventListener('submit', async (e) => {
   const box = $('#user-error');
   box.hidden = true;
   try {
+    const username = form.username.value.trim();
+    const password = form.password.value;
     await api('/api/users', {
       method: 'POST',
-      body: JSON.stringify({
-        username: form.username.value.trim(),
-        password: form.password.value,
-        role: form.role.value,
-      }),
+      body: JSON.stringify({ username, password, role: form.role.value }),
     });
     form.reset();
     toggleUserForm(false);
+    // Gleicher Kopier-Dialog wie beim Passwort-Reset: der Zugang muss
+    // weitergegeben werden, sonst kennt den niemand.
+    showCredential(username, password, `Benutzer „${username}" angelegt.`);
     await loadUsers();
   } catch (err) {
     box.textContent = err.message;
@@ -525,6 +536,13 @@ function toggleUserForm(open) {
     $('#user-error').hidden = true;
   }
 }
+
+$('#new-user-generate').addEventListener('click', () => {
+  const input = $('#new-user-pw');
+  input.value = makePassword();
+  input.focus();
+  input.select();
+});
 
 $('#btn-new-user').addEventListener('click', () => toggleUserForm($('#user-form-wrap').hidden));
 $('#btn-cancel-user').addEventListener('click', () => toggleUserForm(false));

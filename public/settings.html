@@ -150,8 +150,18 @@
           </label>
           <label class="field full">
             <span>Startpasswort (min. 10 Zeichen)</span>
-            <input name="password" type="password" minlength="10" autocomplete="new-password">
+            <span class="pw-wrap">
+              <input name="password" id="new-user-pw" type="password" minlength="10" autocomplete="new-password"
+                     spellcheck="false" autocapitalize="off" autocorrect="off">
+              <button class="pw-eye" type="button" data-eye="#new-user-pw" aria-label="Passwort anzeigen" aria-pressed="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+              </button>
+            </span>
           </label>
+          <div class="pw-actions-row full field">
+            <button class="btn ghost small" type="button" id="new-user-generate">Eigenes Passwort erzeugen</button>
+            <span class="hint">Leer lassen: der Browser-Passwortmanager schlägt eines vor. Oder hier erzeugen.</span>
+          </div>
         </div>
         <p class="form-error" id="user-error" role="alert" hidden></p>
         <div class="section-actions">
