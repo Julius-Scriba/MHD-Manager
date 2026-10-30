@@ -566,29 +566,29 @@ $('#search').addEventListener('input', (e) => {
 });
 $('#filter').addEventListener('change', (e) => { state.filter = e.target.value; render(); });
 
-/* ---------- Menü ---------- */
+/* ---------- Seitenmenü (Drawer) ---------- */
 const burger = $('#btn-burger');
-const navMenu = $('#nav-menu');
+const drawer = $('#nav-drawer');
+const backdrop = $('#drawer-backdrop');
 
 function setMenu(open) {
-  navMenu.hidden = !open;
+  drawer.hidden = !open;
+  backdrop.hidden = !open;
   burger.setAttribute('aria-expanded', String(open));
   burger.setAttribute('aria-label', open ? 'Menü schließen' : 'Menü öffnen');
+  // Scrollen im Hintergrund sperren, solange der Drawer offen ist
+  document.body.classList.toggle('drawer-open', open);
+  if (open) setTimeout(() => $('#btn-drawer-close').focus(), 30);
 }
 
 burger.addEventListener('click', (e) => {
   e.stopPropagation();
-  setMenu(navMenu.hidden);
+  setMenu(drawer.hidden);
 });
-
-// Klick daneben oder Escape schließt – sonst bleibt das Menü über dem Inhalt hängen
-document.addEventListener('click', (e) => {
-  if (navMenu.hidden) return;
-  if (e.target.closest('#nav-menu') || e.target.closest('#btn-burger')) return;
-  setMenu(false);
-});
+$('#btn-drawer-close').addEventListener('click', () => { setMenu(false); burger.focus(); });
+backdrop.addEventListener('click', () => { setMenu(false); burger.focus(); });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !navMenu.hidden) { setMenu(false); burger.focus(); }
+  if (e.key === 'Escape' && !drawer.hidden) { setMenu(false); burger.focus(); }
 });
 
 $('#stats').addEventListener('click', (e) => {
@@ -605,7 +605,10 @@ $('#stats').addEventListener('click', (e) => {
 $('#sort').addEventListener('change', (e) => { state.sort = e.target.value; render(); });
 
 /* ---------- Gemeinsam ---------- */
-$('#btn-add-product').addEventListener('click', () => openProductDialog(null));
+$('#btn-add-product').addEventListener('click', () => {
+  setMenu(false);
+  openProductDialog(null);
+});
 for (const btn of document.querySelectorAll('[data-close]')) {
   btn.addEventListener('click', (e) => e.target.closest('dialog').close());
 }

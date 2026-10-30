@@ -18,36 +18,11 @@
     </div>
   </div>
   <nav class="actions">
-    <!-- Ab Tablet sichtbar, auf dem Handy im Burger-Menü -->
-    <a class="btn ghost only-wide" href="/manufacturers" title="Hersteller">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V9l6-4v4l6-4v15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7.5 12.5h1.5M7.5 16h1.5M13 12.5h1.5M13 16h1.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-      <span>Hersteller</span>
-    </a>
-    <a class="btn ghost only-wide" href="/settings" title="Einstellungen">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M4.5 12h2.2M17.3 12h2.2M6.7 6.7l1.6 1.6M15.7 15.7l1.6 1.6M17.3 6.7l-1.6 1.6M8.3 15.7l-1.6 1.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-      <span>Einstellungen</span>
-    </a>
-    <button class="btn primary" id="btn-add-product" type="button">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      <span>Produkt</span>
-    </button>
     <button class="icon-btn burger" id="btn-burger" type="button" aria-expanded="false"
-            aria-controls="nav-menu" aria-label="Menü öffnen" title="Menü">
+            aria-controls="nav-drawer" aria-label="Menü öffnen" title="Menü">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
     </button>
   </nav>
-
-  <!-- Menü: auf dem Handy das Burger-Menü, ab Tablet ein Dropdown -->
-  <div class="nav-menu" id="nav-menu" hidden>
-    <a class="nav-item" href="/manufacturers">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V9l6-4v4l6-4v15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-      <span>Hersteller</span>
-    </a>
-    <a class="nav-item" href="/settings">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M4.5 12h2.2M17.3 12h2.2M6.7 6.7l1.6 1.6M15.7 15.7l1.6 1.6M17.3 6.7l-1.6 1.6M8.3 15.7l-1.6 1.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-      <span>Einstellungen</span>
-    </a>
-  </div>
 </header>
 
 <main>
@@ -193,6 +168,35 @@
 </dialog>
 
 
+
+<!-- Seitenmenü: öffnet von rechts, schiebt nichts um -->
+<div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+<aside class="drawer" id="nav-drawer" hidden aria-label="Menü">
+  <div class="drawer-head">
+    <span class="drawer-title">Menü</span>
+    <button class="icon-btn" id="btn-drawer-close" type="button" aria-label="Menü schließen" title="Schließen">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <nav class="drawer-nav">
+    <a class="nav-item" href="/">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+      <span>Übersicht</span>
+    </a>
+    <button class="nav-item" id="btn-add-product" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Produkt hinzufügen</span>
+    </button>
+    <a class="nav-item" href="/manufacturers">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V9l6-4v4l6-4v15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7.5 12.5h1.5M7.5 16h1.5M13 12.5h1.5M13 16h1.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <span>Hersteller</span>
+    </a>
+    <a class="nav-item" href="/settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M4.5 12h2.2M17.3 12h2.2M6.7 6.7l1.6 1.6M15.7 15.7l1.6 1.6M17.3 6.7l-1.6 1.6M8.3 15.7l-1.6 1.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span>Einstellungen</span>
+    </a>
+  </nav>
+</aside>
 
 <script src="/app.js"></script>
 </body>

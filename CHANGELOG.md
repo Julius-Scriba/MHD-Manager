@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.15.0 — 2026-10-30
+
+Schmale Kopfzeile, Navigation als Seitenmenü.
+
+**Geändert**
+- Kopfzeile zeigt nur noch Logo, Titel und Burger-Button – rund halb so hoch
+- Alle Aktionen liegen im Seitenmenü (Drawer), das von rechts hereinfährt:
+  Übersicht, Produkt hinzufügen, Hersteller, Einstellungen
+- „Produkt hinzufügen" steckt im Menü statt als eigener Button daneben
+
+**Behoben**
+- Alte Regel `width: 40px` hat Header-Buttons zusammengedrückt – entfernt.
+  Damit war auch der gequetschte „Produkt"-Button dauerhaft weg
+- Hintergrund scrollt nicht mit, solange das Menü offen ist (`body.drawer-open`)
+
+**Technik**
+- Backdrop + Escape + Schließen-Button, Fokus wandert in den Drawer
+- Drawer-Animation respektiert `prefers-reduced-motion`
+
 ## v0.14.0 — 2026-10-30
 
 Burger-Menü auf dem Handy, Kopfzeile entzerrt.

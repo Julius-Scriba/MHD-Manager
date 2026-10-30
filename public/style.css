@@ -60,10 +60,6 @@ h1 { font-size: 17px; margin: 0; letter-spacing: -.01em; line-height: 1.25; }
 .btn.freeze { background: color-mix(in srgb, var(--freeze) 16%, transparent); color: var(--freeze); border-color: color-mix(in srgb, var(--freeze) 45%, transparent); }
 .btn.freeze:hover { background: color-mix(in srgb, var(--freeze) 26%, transparent); }
 .btn:disabled { opacity: .5; cursor: default; }
-@media (max-width: 640px) {
-  .actions .btn span { display: none; }
-  .actions .btn { width: 40px; padding: 0; justify-content: center; }
-}
 
 /* Layout */
 main { max-width: 1080px; margin: 0 auto; padding: 16px max(16px, env(safe-area-inset-left)) 96px; }
@@ -512,42 +508,62 @@ body.check-mode .check-row { display: flex; }
 .facts.wide dd a:hover { text-decoration: underline; }
 .maker-products-wrap { margin-top: 18px; }
 
-/* ---------- Topbar und Menü ---------- */
-.actions .burger { display: none; }
+/* ---------- Topbar: schmal, nur Logo, Titel, Burger ---------- */
+.actions .burger { display: grid; }
 
-/* Menü: ab Tablet ein Dropdown unter dem Button, auf dem Handy eine
-   breite Fläche unter der Kopfzeile. Kein Quetschen der Buttons mehr. */
-.nav-menu {
-  position: absolute; top: calc(100% - 4px); right: max(12px, env(safe-area-inset-right));
-  margin-top: 6px; z-index: 40; min-width: 200px;
-  /* absolut im sticky Header: öffnet direkt unter dem Burger, egal wie weit
-     die Seite gescrollt ist */
-  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
-  box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; gap: 2px;
+.topbar {
+  padding: 8px max(12px, env(safe-area-inset-left)) 8px max(12px, env(safe-area-inset-right));
+  min-height: 0;
 }
+.topbar .logo { width: 24px; height: 24px; }
+.topbar h1 { font-size: 15px; }
+.topbar .sub { font-size: 11.5px; margin-top: 0; }
+.topbar .icon-btn { width: 36px; height: 36px; }
+.brand { gap: 9px; }
+
+/* ---------- Seitenmenü ---------- */
+.drawer-backdrop {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(6, 10, 14, .5);
+}
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 60;
+  width: min(300px, 84vw);
+  background: var(--surface); border-left: 1px solid var(--line);
+  box-shadow: -12px 0 32px rgba(0, 0, 0, .28);
+  display: flex; flex-direction: column;
+  padding: max(10px, env(safe-area-inset-top)) 10px max(12px, env(safe-area-inset-bottom));
+  animation: drawer-in .2s ease-out;
+}
+@keyframes drawer-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer { animation: none; }
+}
+.drawer-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 2px 6px 10px; border-bottom: 1px solid var(--line); margin-bottom: 8px;
+}
+.drawer-title {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--muted); font-weight: 650;
+}
+.drawer-nav { display: flex; flex-direction: column; gap: 2px; }
 .nav-item {
-  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
-  border-radius: 8px; color: inherit; text-decoration: none; font-size: 14px; font-weight: 550;
+  display: flex; align-items: center; gap: 11px; width: 100%;
+  padding: 12px 12px; border-radius: 10px; border: 0; background: none;
+  color: inherit; text-decoration: none; font: inherit; font-size: 14.5px;
+  font-weight: 550; text-align: left; cursor: pointer;
 }
 .nav-item:hover { background: var(--surface-2); }
+.nav-item:active { transform: scale(.99); }
 .nav-item svg { color: var(--muted); width: 18px; height: 18px; }
 
-@media (max-width: 640px) {
-  .topbar { gap: 8px; padding: 10px 12px; }
-  .topbar .actions .only-wide { display: none; }
-  .actions .burger { display: grid; width: 38px; height: 38px; }
-  .topbar .actions .btn { height: 38px; padding: 0 12px; font-size: 13.5px; }
-  /* Der Produkt-Button behält sein Wort und darf nicht schrumpfen */
-  .topbar .actions .btn.primary { flex: 0 0 auto; white-space: nowrap; }
-  #btn-add-product { min-width: 96px; }
-  #btn-add-product span { display: inline; }
-  .nav-menu {
-    left: 8px; right: 8px; top: calc(100% - 2px); margin-top: 0; min-width: 0;
-  }
-  h1 { font-size: 15.5px; }
-  .sub { font-size: 12px; }
-  .brand { flex: 1 1 auto; min-width: 0; }
-}
+/* Offener Drawer: Seite dahinter darf nicht mitscrollen */
+body.drawer-open { overflow: hidden; }
+
 .field-note { display: block; margin-top: 4px; font-size: 11.5px; color: var(--muted); }
 
 /* hidden muss auch bei Elementen mit eigenem display greifen – sonst stehen
