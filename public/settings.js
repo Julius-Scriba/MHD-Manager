@@ -312,13 +312,65 @@ async function loadUsers() {
 /* ---------- Passwort setzen (Admin) ---------- */
 const pwDialog = $('#pw-dialog');
 const pwDialogForm = $('#pw-dialog-form');
+const pwResult = $('#pw-result');
 let pwTarget = null;
+let pwTargetName = '';
+
+/* Zufälliges Passwort aus Wortliste: leicht zu tippen und am Telefon zu sagen. */
+const PW_WORDS = [
+  'anker', 'aster', 'birke', 'distel', 'donner', 'eichel', 'feder', 'flieder',
+  'garten', 'hafen', 'hagel', 'hebel', 'heide', 'insel', 'kachel', 'kamin',
+  'kiesel', 'klee', 'kranich', 'laterne', 'lehm', 'linde', 'marder', 'nadel',
+  'nebel', 'nelke', 'oase', 'pfeil', 'pflug', 'quarz', 'quelle', 'regen',
+  'reisig', 'rinde', 'sand', 'schale', 'segel', 'seife', 'silo', 'sonne',
+  'spaten', 'steg', 'tanne', 'teich', 'tonne', 'turm', 'ufer', 'ulme',
+  'weide', 'wiese', 'wolke', 'zaun', 'zweig',
+];
+
+function makePassword() {
+  const pick = () => PW_WORDS[crypto.getRandomValues(new Uint32Array(1))[0] % PW_WORDS.length];
+  const n = 10 + (crypto.getRandomValues(new Uint32Array(1))[0] % 90);
+  return `${[pick(), pick(), pick(), pick()].join('-')}-${n}`;
+}
+
+/** Kopieren mit Rückfallebene – Clipboard-API ist nicht überall erlaubt. */
+async function copyText(text, noteEl, label = 'Kopiert.') {
+  try {
+    await navigator.clipboard.writeText(text);
+    noteEl.textContent = label;
+    noteEl.className = 'copy-note ok';
+  } catch (err) {
+    const tmp = document.createElement('textarea');
+    tmp.value = text;
+    tmp.setAttribute('readonly', '');
+    tmp.style.position = 'fixed';
+    tmp.style.opacity = '0';
+    document.body.appendChild(tmp);
+    tmp.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(tmp);
+    noteEl.textContent = ok ? label : 'Kopieren blockiert — Text oben markieren und selbst kopieren.';
+    noteEl.className = ok ? 'copy-note ok' : 'copy-note bad';
+  }
+  setTimeout(() => { noteEl.textContent = ''; noteEl.className = 'copy-note'; }, 3000);
+}
+
+/** Der kopierbare Text: sauber lesbar, direkt in eine Nachricht einfügbar. */
+function credentialText({ url, user, pass }) {
+  return [
+    `URL: ${url}`,
+    `Benutzername: ${user}`,
+    `Passwort: ${pass}`,
+    '',
+    'Bitte nach der Anmeldung ein eigenes Passwort setzen.',
+  ].join('\n');
+}
 
 function openPwDialog(id, name) {
   pwTarget = id;
+  pwTargetName = name;
   pwDialogForm.reset();
   $('#pwd-error').hidden = true;
-  $('#pwd-ok').hidden = true;
   $('#pwd-meter').hidden = true;
   $('#pw-dialog-sub').textContent = `Neues Passwort für „${name}". Die Person wird auf allen Geräten abgemeldet.`;
   $('#pw-dialog-user').value = name;
@@ -327,6 +379,14 @@ function openPwDialog(id, name) {
 }
 
 $('#pwd-cancel').addEventListener('click', () => pwDialog.close());
+
+$('#pwd-generate').addEventListener('click', () => {
+  const pw = makePassword();
+  $('#pwd-new').value = pw;
+  $('#pwd-new').dispatchEvent(new Event('input'));
+  $('#pwd-new').focus();
+  $('#pwd-new').select();
+});
 
 pwDialog.addEventListener('close', () => {
   pwDialogForm.reset();
@@ -349,16 +409,14 @@ $('#pwd-new').addEventListener('input', (e) => {
 pwDialogForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   $('#pwd-error').hidden = true;
-  $('#pwd-ok').hidden = true;
   const next = $('#pwd-new').value;
-  const confirm = $('#pwd-confirm').value;
-  if (next.length < 10) {
-    $('#pwd-error').textContent = 'Das Passwort braucht mindestens 10 Zeichen.';
+  if (!next) {
+    $('#pwd-error').textContent = 'Bitte ein Passwort eingeben oder eines vorschlagen lassen.';
     $('#pwd-error').hidden = false;
     return;
   }
-  if (next !== confirm) {
-    $('#pwd-error').textContent = 'Die beiden Passwörter stimmen nicht überein.';
+  if (next.length < 10) {
+    $('#pwd-error').textContent = 'Das Passwort braucht mindestens 10 Zeichen.';
     $('#pwd-error').hidden = false;
     return;
   }
@@ -368,12 +426,16 @@ pwDialogForm.addEventListener('submit', async (e) => {
     await api(`/api/users/${pwTarget}/password`, {
       method: 'POST', body: JSON.stringify({ password: next }),
     });
-    $('#pwd-ok').textContent = 'Passwort gesetzt. Alle Sitzungen der Person wurden beendet.';
-    $('#pwd-ok').hidden = false;
-    pwDialogForm.reset();
-    $('#pwd-meter').hidden = true;
+    // Werte im Ergebnisdialog bereitstellen, damit sie weitergegeben werden können
+    $('#cred-url').textContent = location.origin;
+    $('#cred-user').textContent = pwTargetName;
+    $('#cred-pass').textContent = next;
+    $('#pwd-result-sub').textContent = `Zugang für „${pwTargetName}". Alle bisherigen Sitzungen wurden beendet.`;
+    $('#pwd-result-note').textContent = '';
+    pwDialog.close();
+    pwResult.showModal();
+    setTimeout(() => $('#pwd-result-copy').focus(), 40);
     await loadUsers();
-    setTimeout(() => { if (pwDialog.open) pwDialog.close(); }, 1400);
   } catch (err) {
     $('#pwd-error').textContent = err.message;
     $('#pwd-error').hidden = false;
@@ -381,6 +443,23 @@ pwDialogForm.addEventListener('submit', async (e) => {
     save.disabled = false;
   }
 });
+
+$('#pwd-result-copy').addEventListener('click', () => {
+  const text = credentialText({
+    url: $('#cred-url').textContent,
+    user: $('#cred-user').textContent,
+    pass: $('#cred-pass').textContent,
+  });
+  copyText(text, $('#pwd-result-note'), 'Zugangsdaten kopiert.');
+});
+
+function clearCredential() {
+  $('#cred-pass').textContent = '';
+  $('#cred-user').textContent = '';
+  $('#cred-url').textContent = '';
+}
+$('#pwd-result-close').addEventListener('click', () => { pwResult.close(); });
+pwResult.addEventListener('close', clearCredential);
 
 $('#user-list').addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-uact]');

@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.15.1 — 2026-10-30
+
+Passwort weitergeben: Browser-Vorschlag wieder möglich, Zugangsdaten kopierbar.
+
+**Behoben**
+- Das Passwortfeld war auf `type="text"` umgestellt — damit schlägt der
+  Browser-Passwortmanager kein Passwort mehr vor und füllt auch nichts ein.
+  Wieder `type="password"` mit `autocomplete="new-password"`. Das Auge zeigt
+  den Wert an, ohne das Feld zu verändern
+
+**Neu**
+- Nach dem Setzen zeigt ein eigener Dialog URL, Benutzername und Passwort
+  untereinander in einem Block
+- „Zugangsdaten kopieren" legt alles als Text in die Zwischenablage:
+
+      URL: https://mhd2.unknownengine.com
+      Benutzername: leonie
+      Passwort: tanne-kiesel-laterne-weide-42
+
+      Bitte nach der Anmeldung ein eigenes Passwort setzen.
+
+- Beim Schließen wird der Passwortwert aus der Seite entfernt
+
+**Entfernt**
+- Doppelte Passwortabfrage im Admin-Dialog (Wiederholung) — mit Generator
+  und Kopierfunktion nur Reibung
+
 ## v0.15.0 — 2026-10-30
 
 Schmale Kopfzeile, Navigation als Seitenmenü.

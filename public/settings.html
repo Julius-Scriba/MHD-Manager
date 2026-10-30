@@ -190,17 +190,23 @@
   </section>
 
 <!-- Passwort setzen (Admin) — eigener Dialog statt Browser-Prompt -->
-<dialog id="pw-dialog" class="sheet">
+<!-- Passwort setzen: eigenes Passwort oder generiert, danach als Text kopierbar -->
+<dialog id="pw-dialog" class="sheet pw-sheet">
   <div class="settings-body">
     <h2>Passwort setzen</h2>
     <p class="sheet-sub" id="pw-dialog-sub"></p>
+
     <form id="pw-dialog-form" novalidate>
       <input type="text" id="pw-dialog-user" autocomplete="username" class="visually-hidden" tabindex="-1" aria-hidden="true" readonly>
+
       <label class="field full">
         <span>Neues Passwort</span>
         <span class="pw-wrap">
+          <!-- type="password" + autocapitalize/autocorrect aus: so greift der
+               Passwort-Manager des Browsers und schlägt ein Passwort vor -->
           <input name="new-password" id="pwd-new" type="password" autocomplete="new-password"
-                 minlength="10" maxlength="200" required>
+                 minlength="10" maxlength="200" required spellcheck="false"
+                 autocapitalize="off" autocorrect="off">
           <button class="pw-eye" type="button" data-eye="#pwd-new" aria-label="Passwort anzeigen" aria-pressed="false">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
           </button>
@@ -210,26 +216,44 @@
         <div class="pw-meter-bar"><span id="pwd-meter-fill"></span></div>
         <span class="pw-meter-text" id="pwd-meter-text"></span>
       </div>
-      <label class="field full">
-        <span>Wiederholen</span>
-        <span class="pw-wrap">
-          <input name="confirm-password" id="pwd-confirm" type="password" autocomplete="new-password"
-                 minlength="10" maxlength="200" required>
-          <button class="pw-eye" type="button" data-eye="#pwd-confirm" aria-label="Wiederholung anzeigen" aria-pressed="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
-          </button>
-        </span>
-      </label>
+
+      <div class="pw-actions-row">
+        <button class="btn ghost small" type="button" id="pwd-generate">Eigenes Passwort erzeugen</button>
+        <span class="hint">Leer lassen: der Browser-Passwortmanager schlägt eines vor. Oder hier erzeugen.</span>
+      </div>
+
       <div class="section-actions spread">
         <button class="btn ghost" type="button" id="pwd-cancel">Abbrechen</button>
         <button class="btn primary" type="submit" id="pwd-save">Passwort setzen</button>
       </div>
       <p class="form-error" id="pwd-error" role="alert" hidden></p>
-      <p class="form-ok" id="pwd-ok" role="status" hidden></p>
     </form>
   </div>
 </dialog>
-</main>
+
+<!-- Ergebnis: alles in einem Block, per Button als Text kopierbar -->
+<dialog id="pw-result" class="sheet pw-sheet">
+  <div class="settings-body">
+    <h2>Zugang weitergeben</h2>
+    <p class="sheet-sub" id="pwd-result-sub"></p>
+
+    <div class="cred-box">
+      <div class="cred-row"><span class="cred-label">URL</span><span class="cred-value" id="cred-url"></span></div>
+      <div class="cred-row"><span class="cred-label">Benutzername</span><span class="cred-value" id="cred-user"></span></div>
+      <div class="cred-row"><span class="cred-label">Passwort</span><span class="cred-value" id="cred-pass"></span></div>
+    </div>
+
+    <div class="cred-actions">
+      <button class="btn primary" type="button" id="pwd-result-copy">Zugangsdaten kopieren</button>
+      <span class="copy-note" id="pwd-result-note" role="status"></span>
+    </div>
+
+    <p class="hint">Kopiert wird alles als Text — im Format URL, Benutzername, Passwort, mit dem Hinweis, das Passwort zu ändern. Nach dem Schließen ist der Wert aus der Seite gelöscht.</p>
+    <div class="section-actions">
+      <button class="btn ghost" type="button" id="pwd-result-close">Fertig</button>
+    </div>
+  </div>
+</dialog></main>
 
 <script src="/settings.js"></script>
 </body>

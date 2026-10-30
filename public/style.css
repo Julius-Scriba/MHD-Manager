@@ -570,3 +570,46 @@ body.drawer-open { overflow: hidden; }
    zwei Kopfzeilen untereinander, weil .topbar { display: flex } das
    Browser-Stylesheet [hidden] { display: none } überschreibt. */
 [hidden] { display: none !important; }
+
+/* ---------- Passwort setzen / weitergeben ---------- */
+.pw-sheet { width: min(520px, calc(100vw - 24px)); }
+.pw-actions-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.pw-actions-row .hint { margin: 0; flex: 1 1 200px; font-size: 11.5px; }
+.pw-copy-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.copy-note { font-size: 11.5px; }
+.copy-note.ok { color: var(--ok); }
+.copy-note.bad { color: var(--expired); }
+
+.pw-result-box {
+  display: flex; align-items: center; gap: 8px; margin: 4px 0 10px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px;
+}
+.pw-result-box code {
+  flex: 1; min-width: 0; font-size: 14.5px; font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-all; user-select: all;
+}
+.pw-result-box .btn { flex: none; }
+
+/* ---------- Zugangsdaten weitergeben ---------- */
+.cred-box {
+  border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+  background: var(--surface-2); margin: 4px 0 12px;
+}
+.cred-row {
+  display: grid; grid-template-columns: 108px 1fr; gap: 10px; align-items: baseline;
+  padding: 9px 12px; border-bottom: 1px solid var(--line);
+}
+.cred-row:last-child { border-bottom: 0; }
+.cred-label {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted); font-weight: 650;
+}
+.cred-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13.5px; font-weight: 600; word-break: break-all; user-select: all;
+}
+.cred-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
